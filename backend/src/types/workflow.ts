@@ -9,6 +9,7 @@ export const WorkflowStateSchema = z.object({
     // Current stage
     stage: z.enum([
         'idle',
+        'parsing',
         'analyzing',
         'analysis_complete',
         'blueprinting',

@@ -2,6 +2,8 @@
 
 import { Low } from 'lowdb';
 import { JSONFile } from 'lowdb/node';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
     Database,
     Project,
@@ -9,15 +11,17 @@ import {
     Chunk,
     Embedding,
     Analysis,
-    Blueprint
+    Blueprint,
+    SlideContent,
+    SpeakerNote,
 } from '../types/database.js';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { existsSync, mkdirSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
+const dbPath = path.join(__dirname, '../../data/db.json');
+
+// Default data structure
 const defaultData: Database = {
     projects: [],
     documents: [],
@@ -25,386 +29,435 @@ const defaultData: Database = {
     embeddings: [],
     analyses: [],
     blueprints: [],
-    generations: [],
+    slideContents: [],
     speakerNotes: [],
 };
 
 class DatabaseService {
-    public db!: Low<Database>;
-    private initialized = false;
+    public db: Low<Database>;
 
-    async init() {
-        if (this.initialized) return;
-
-        const dbPath = process.env.DB_PATH || join(__dirname, '../../data/db.json');
-        const dbDir = dirname(dbPath);
-
-        // Ensure data directory exists
-        if (!existsSync(dbDir)) {
-            mkdirSync(dbDir, { recursive: true });
-            console.log(`📁 Created data directory: ${dbDir}`);
-        }
-
+    constructor() {
         const adapter = new JSONFile<Database>(dbPath);
         this.db = new Low(adapter, defaultData);
-
-        await this.db.read();
-        this.db.data ||= defaultData;
-
-        // Ensure all collections exist
-        this.db.data.projects ||= [];
-        this.db.data.documents ||= [];
-        this.db.data.chunks ||= [];
-        this.db.data.embeddings ||= [];
-        this.db.data.analyses ||= [];
-        this.db.data.blueprints ||= [];
-        this.db.data.generations ||= [];
-        this.db.data.speakerNotes ||= [];
-
-        await this.db.write();
-
-        this.initialized = true;
-        console.log('✅ Database initialized at:', dbPath);
-        console.log(`📊 Current data: ${this.db.data.projects.length} projects, ${this.db.data.documents.length} documents`);
     }
 
-    // ==================== PROJECTS ====================
-
-    async createProject(project: Project): Promise<Project> {
+    async init() {
         await this.db.read();
+        this.db.data ||= defaultData;
+        await this.db.write();
+    }
+
+    // =============================================================================
+    // PROJECTS
+    // =============================================================================
+
+    async createProject(projectData: Partial<Project>): Promise<Project> {
+        await this.db.read();
+
+        const project: Project = {
+            id: crypto.randomUUID(),
+            name: projectData.name || 'Untitled Project',
+            description: projectData.description,
+            presentationGoal: projectData.presentationGoal,
+            targetAudience: projectData.targetAudience,
+            presentationContext: projectData.presentationContext,
+            keyMessage: projectData.keyMessage,
+            status: 'created',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            progress: {
+                parsing: 0,
+                analysis: 0,
+                blueprint: 0,
+                content: 0,
+                generation: 0,
+            },
+            metadata: projectData.metadata || {},
+        };
+
         this.db.data.projects.push(project);
         await this.db.write();
-        console.log(`✅ Project created: ${project.name} (${project.id})`);
+
         return project;
     }
 
-    async getProject(id: string): Promise<Project | undefined> {
+    async getProject(projectId: string): Promise<Project> {
         await this.db.read();
-        return this.db.data.projects.find(p => p.id === id);
+        const project = this.db.data.projects.find((p) => p.id === projectId);
+        if (!project) {
+            throw new Error(`Project ${projectId} not found`);
+        }
+        return project;
     }
 
     async getAllProjects(): Promise<Project[]> {
         await this.db.read();
-        return this.db.data.projects.filter(p => p.status === 'active');
+        return this.db.data.projects;
     }
 
-    async updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined> {
+    async updateProject(projectId: string, updates: Partial<Project>): Promise<Project> {
         await this.db.read();
-        const project = this.db.data.projects.find(p => p.id === id);
-        if (project) {
-            Object.assign(project, updates);
-            project.updatedAt = new Date().toISOString();
-            await this.db.write();
+        const project = this.db.data.projects.find((p) => p.id === projectId);
+
+        if (!project) {
+            throw new Error(`Project ${projectId} not found`);
         }
+
+        // Deep merge for nested objects like progress
+        if (updates.progress) {
+            project.progress = {
+                ...project.progress,
+                ...updates.progress,
+            };
+            delete updates.progress;
+        }
+
+        Object.assign(project, updates);
+        project.updatedAt = new Date().toISOString();
+
+        await this.db.write();
         return project;
     }
 
-    async deleteProject(id: string): Promise<boolean> {
+    async deleteProject(projectId: string): Promise<void> {
         await this.db.read();
-        const project = this.db.data.projects.find(p => p.id === id);
-        if (project) {
-            project.status = 'archived';
-            project.updatedAt = new Date().toISOString();
-            await this.db.write();
-            return true;
-        }
-        return false;
+
+        // Delete related data
+        this.db.data.documents = this.db.data.documents.filter(
+            (d) => d.projectId !== projectId
+        );
+        this.db.data.chunks = this.db.data.chunks.filter((c) => {
+            const doc = this.db.data.documents.find((d) => d.id === c.documentId);
+            return doc?.projectId !== projectId;
+        });
+        this.db.data.analyses = this.db.data.analyses.filter(
+            (a) => a.projectId !== projectId
+        );
+        this.db.data.blueprints = this.db.data.blueprints.filter(
+            (b) => b.projectId !== projectId
+        );
+        this.db.data.projects = this.db.data.projects.filter((p) => p.id !== projectId);
+
+        await this.db.write();
     }
 
-    // ==================== DOCUMENTS ====================
+    // =============================================================================
+    // DOCUMENTS
+    // =============================================================================
 
-    async createDocument(doc: Omit<Document, 'id' | 'uploadedAt' | 'status'>): Promise<Document> {
+    async createDocument(documentData: Partial<Document>): Promise<Document> {
         await this.db.read();
+
         const document: Document = {
-            ...doc,
             id: crypto.randomUUID(),
+            projectId: documentData.projectId!,
+            filename: documentData.filename!,
+            originalName: documentData.originalName!,
+            mimeType: documentData.mimeType!,
+            size: documentData.size!,
             uploadedAt: new Date().toISOString(),
             status: 'uploaded',
+            metadata: documentData.metadata || {},
         };
+
         this.db.data.documents.push(document);
         await this.db.write();
-        console.log(`📄 Document created: ${document.originalName} (${document.id})`);
+
         return document;
     }
 
-    async updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined> {
+    async getDocument(documentId: string): Promise<Document> {
         await this.db.read();
-        const doc = this.db.data.documents.find(d => d.id === id);
-        if (doc) {
-            Object.assign(doc, updates);
-            await this.db.write();
+        const document = this.db.data.documents.find((d) => d.id === documentId);
+        if (!document) {
+            throw new Error(`Document ${documentId} not found`);
         }
-        return doc;
-    }
-
-    async getDocument(id: string): Promise<Document | undefined> {
-        await this.db.read();
-        return this.db.data.documents.find(d => d.id === id);
+        return document;
     }
 
     async getDocumentsByProject(projectId: string): Promise<Document[]> {
         await this.db.read();
-        return this.db.data.documents.filter(d => d.projectId === projectId);
+        return this.db.data.documents.filter((d) => d.projectId === projectId);
     }
 
-    // ==================== CHUNKS ====================
-
-    async createChunks(chunks: Omit<Chunk, 'id'>[]): Promise<Chunk[]> {
+    async updateDocument(documentId: string, updates: Partial<Document>): Promise<Document> {
         await this.db.read();
-        const newChunks = chunks.map(chunk => ({
-            ...chunk,
-            id: crypto.randomUUID(),
-        }));
-        this.db.data.chunks.push(...newChunks);
+        const document = this.db.data.documents.find((d) => d.id === documentId);
+
+        if (!document) {
+            throw new Error(`Document ${documentId} not found`);
+        }
+
+        Object.assign(document, updates);
         await this.db.write();
-        console.log(`📦 Created ${newChunks.length} chunks`);
-        return newChunks;
+
+        return document;
+    }
+
+    // =============================================================================
+    // CHUNKS
+    // =============================================================================
+
+    async createChunk(chunkData: Partial<Chunk>): Promise<Chunk> {
+        await this.db.read();
+
+        const chunk: Chunk = {
+            id: crypto.randomUUID(),
+            documentId: chunkData.documentId!,
+            content: chunkData.content!,
+            metadata: chunkData.metadata!,
+            chunkIndex: chunkData.chunkIndex!,
+        };
+
+        this.db.data.chunks.push(chunk);
+        await this.db.write();
+
+        return chunk;
+    }
+
+    async createChunks(chunksData: Partial<Chunk>[]): Promise<Chunk[]> {
+        await this.db.read();
+
+        const chunks: Chunk[] = chunksData.map((chunkData) => ({
+            id: crypto.randomUUID(),
+            documentId: chunkData.documentId!,
+            content: chunkData.content!,
+            metadata: chunkData.metadata!,
+            chunkIndex: chunkData.chunkIndex!,
+        }));
+
+        this.db.data.chunks.push(...chunks);
+        await this.db.write();
+
+        return chunks;
+    }
+
+    async getChunkById(chunkId: string): Promise<Chunk> {
+        await this.db.read();
+        const chunk = this.db.data.chunks.find((c) => c.id === chunkId);
+        if (!chunk) {
+            throw new Error(`Chunk ${chunkId} not found`);
+        }
+        return chunk;
     }
 
     async getChunksByDocument(documentId: string): Promise<Chunk[]> {
         await this.db.read();
-        return this.db.data.chunks.filter(c => c.documentId === documentId);
+        return this.db.data.chunks.filter((c) => c.documentId === documentId);
     }
 
-    async getChunk(id: string): Promise<Chunk | undefined> {
+    async getChunksByProject(projectId: string): Promise<Chunk[]> {
         await this.db.read();
-        return this.db.data.chunks.find(c => c.id === id);
+
+        const documents = this.db.data.documents.filter((d) => d.projectId === projectId);
+        const documentIds = new Set(documents.map((d) => d.id));
+
+        return this.db.data.chunks.filter((c) => documentIds.has(c.documentId));
     }
 
-    async getAllChunks(): Promise<Chunk[]> {
-        await this.db.read();
-        return this.db.data.chunks;
-    }
+    // =============================================================================
+    // EMBEDDINGS
+    // =============================================================================
 
-    // ==================== EMBEDDINGS ====================
-
-    async createEmbeddings(embeddings: Omit<Embedding, 'id' | 'createdAt'>[]): Promise<Embedding[]> {
+    async createEmbedding(embeddingData: Partial<Embedding>): Promise<Embedding> {
         await this.db.read();
-        const newEmbeddings = embeddings.map(emb => ({
-            ...emb,
+
+        const embedding: Embedding = {
             id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-        }));
-        this.db.data.embeddings.push(...newEmbeddings);
-        await this.db.write();
-        console.log(`🔢 Created ${newEmbeddings.length} embeddings`);
-        return newEmbeddings;
-    }
-
-    async getEmbeddingsByChunks(chunkIds: string[]): Promise<Embedding[]> {
-        await this.db.read();
-        return this.db.data.embeddings.filter(e => chunkIds.includes(e.chunkId));
-    }
-
-    async getEmbedding(chunkId: string): Promise<Embedding | undefined> {
-        await this.db.read();
-        return this.db.data.embeddings.find(e => e.chunkId === chunkId);
-    }
-
-    // ==================== RAG SEARCH ====================
-
-    async searchSimilarChunks(queryVector: number[], topK = 5): Promise<Array<{
-        chunk: Chunk;
-        similarity: number;
-    }>> {
-        await this.db.read();
-
-        // Calculate cosine similarity for all embeddings
-        const similarities = this.db.data.embeddings.map(emb => {
-            const similarity = this.cosineSimilarity(queryVector, emb.vector);
-            return { embedding: emb, similarity };
-        });
-
-        // Sort by similarity (descending)
-        similarities.sort((a, b) => b.similarity - a.similarity);
-
-        // Take top K
-        const topResults = similarities.slice(0, topK);
-
-        // Get corresponding chunks
-        const chunkIds = topResults.map(r => r.embedding.chunkId);
-        const chunks = this.db.data.chunks.filter(c => chunkIds.includes(c.id));
-
-        return topResults.map(r => {
-            const chunk = chunks.find(c => c.id === r.embedding.chunkId);
-            if (!chunk) {
-                throw new Error(`Chunk not found for embedding: ${r.embedding.chunkId}`);
-            }
-            return {
-                chunk,
-                similarity: r.similarity,
-            };
-        });
-    }
-
-    private cosineSimilarity(a: number[], b: number[]): number {
-        if (a.length !== b.length) {
-            throw new Error('Vectors must have same length');
-        }
-
-        const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
-        const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-        const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-
-        if (magnitudeA === 0 || magnitudeB === 0) {
-            return 0;
-        }
-
-        return dotProduct / (magnitudeA * magnitudeB);
-    }
-
-    // ==================== ANALYSES ====================
-
-    async createAnalysis(analysis: Omit<Analysis, 'id' | 'createdAt'>): Promise<Analysis> {
-        await this.db.read();
-        const newAnalysis: Analysis = {
-            ...analysis,
-            id: crypto.randomUUID(),
+            chunkId: embeddingData.chunkId!,
+            vector: embeddingData.vector!,
+            model: embeddingData.model!,
             createdAt: new Date().toISOString(),
         };
-        this.db.data.analyses.push(newAnalysis);
+
+        this.db.data.embeddings.push(embedding);
         await this.db.write();
-        console.log(`🔍 Analysis created: ${newAnalysis.id}`);
-        return newAnalysis;
+
+        return embedding;
+    }
+
+    async getEmbeddingByChunk(chunkId: string): Promise<Embedding | null> {
+        await this.db.read();
+        return this.db.data.embeddings.find((e) => e.chunkId === chunkId) || null;
+    }
+
+    // =============================================================================
+    // ANALYSIS
+    // =============================================================================
+
+    async createAnalysis(analysisData: Partial<Analysis>): Promise<Analysis> {
+        await this.db.read();
+
+        const analysis: Analysis = {
+            id: crypto.randomUUID(),
+            projectId: analysisData.projectId!,
+            documentIds: analysisData.documentIds!,
+            classification: analysisData.classification!,
+            entities: analysisData.entities!,
+            keyPoints: analysisData.keyPoints,
+            themes: analysisData.themes,
+            metrics: analysisData.metrics!,
+            quality: analysisData.quality!,
+            recommendations: analysisData.recommendations!,
+            createdAt: new Date().toISOString(),
+        };
+
+        this.db.data.analyses.push(analysis);
+        await this.db.write();
+
+        return analysis;
+    }
+
+    async getAnalysis(analysisId: string): Promise<Analysis> {
+        await this.db.read();
+        const analysis = this.db.data.analyses.find((a) => a.id === analysisId);
+        if (!analysis) {
+            throw new Error(`Analysis ${analysisId} not found`);
+        }
+        return analysis;
     }
 
     async getAnalysesByProject(projectId: string): Promise<Analysis[]> {
         await this.db.read();
-        return this.db.data.analyses
-            .filter(a => a.projectId === projectId)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return this.db.data.analyses.filter((a) => a.projectId === projectId);
     }
 
-    async getLatestAnalysis(projectId: string): Promise<Analysis | undefined> {
-        const analyses = await this.getAnalysesByProject(projectId);
-        return analyses[0];
-    }
+    // =============================================================================
+    // BLUEPRINT
+    // =============================================================================
 
-    // ==================== BLUEPRINTS ====================
-
-    async createBlueprint(blueprint: Omit<Blueprint, 'id' | 'createdAt'>): Promise<Blueprint> {
+    async createBlueprint(blueprintData: Partial<Blueprint>): Promise<Blueprint> {
         await this.db.read();
-        const newBlueprint: Blueprint = {
-            ...blueprint,
+
+        const blueprint: Blueprint = {
             id: crypto.randomUUID(),
+            projectId: blueprintData.projectId!,
+            analysisId: blueprintData.analysisId!,
+            slides: blueprintData.slides!,
+            metadata: blueprintData.metadata!,
+            structure: blueprintData.structure,
+            dataUsageStats: blueprintData.dataUsageStats,
+            validationWarnings: blueprintData.validationWarnings || [],
+            visualStyle: blueprintData.visualStyle,
+            status: 'draft',
             createdAt: new Date().toISOString(),
         };
-        this.db.data.blueprints.push(newBlueprint);
+
+        this.db.data.blueprints.push(blueprint);
         await this.db.write();
-        console.log(`📐 Blueprint created: ${newBlueprint.id}`);
-        return newBlueprint;
+
+        return blueprint;
     }
 
-    async updateBlueprint(id: string, updates: Partial<Blueprint>): Promise<Blueprint | undefined> {
+    async getBlueprint(blueprintId: string): Promise<Blueprint> {
         await this.db.read();
-        const blueprint = this.db.data.blueprints.find(b => b.id === id);
-        if (blueprint) {
-            Object.assign(blueprint, updates);
-            blueprint.updatedAt = new Date().toISOString();
-            await this.db.write();
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            throw new Error(`Blueprint ${blueprintId} not found`);
         }
         return blueprint;
     }
 
     async getBlueprintsByProject(projectId: string): Promise<Blueprint[]> {
         await this.db.read();
-        return this.db.data.blueprints
-            .filter(b => b.projectId === projectId)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return this.db.data.blueprints.filter((b) => b.projectId === projectId);
     }
 
-    async getLatestBlueprint(projectId: string, status?: 'draft' | 'approved' | 'rejected'): Promise<Blueprint | undefined> {
+    async updateBlueprint(blueprintId: string, updates: Partial<Blueprint>): Promise<Blueprint> {
         await this.db.read();
-        let blueprints = this.db.data.blueprints
-            .filter(b => b.projectId === projectId)
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
 
-        if (status) {
-            blueprints = blueprints.filter(b => b.status === status);
+        if (!blueprint) {
+            throw new Error(`Blueprint ${blueprintId} not found`);
         }
 
-        return blueprints[0];
-    }
+        Object.assign(blueprint, updates);
+        blueprint.updatedAt = new Date().toISOString();
 
-    // ==================== GENERATIONS ====================
-
-    async createGeneration(generation: any): Promise<any> {
-        await this.db.read();
-        const newGeneration = {
-            ...generation,
-            id: generation.id || crypto.randomUUID(),
-            createdAt: generation.createdAt || new Date().toISOString(),
-        };
-        this.db.data.generations = this.db.data.generations || [];
-        this.db.data.generations.push(newGeneration);
         await this.db.write();
-        console.log(`✨ Generation created: ${newGeneration.id}`);
-        return newGeneration;
+        return blueprint;
     }
 
-    async getGenerationsByProject(projectId: string): Promise<any[]> {
+    // =============================================================================
+    // SLIDE CONTENT
+    // =============================================================================
+
+    async createSlideContent(contentData: SlideContent): Promise<SlideContent> {
         await this.db.read();
-        this.db.data.generations = this.db.data.generations || [];
-        return this.db.data.generations
-            .filter((g: any) => g.projectId === projectId)
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
 
-    async getLatestGeneration(projectId: string): Promise<any | undefined> {
-        const generations = await this.getGenerationsByProject(projectId);
-        return generations[0];
-    }
+        // Check if content already exists for this slide
+        const existingIndex = this.db.data.slideContents.findIndex(
+            (c) => c.slideId === contentData.slideId
+        );
 
-    // ==================== SPEAKER NOTES ====================
+        if (existingIndex >= 0) {
+            // Update existing
+            this.db.data.slideContents[existingIndex] = contentData;
+        } else {
+            // Create new
+            this.db.data.slideContents.push(contentData);
+        }
 
-    async createSpeakerNotes(speakerNotes: any): Promise<any> {
-        await this.db.read();
-        const newSpeakerNotes = {
-            ...speakerNotes,
-            id: speakerNotes.id || crypto.randomUUID(),
-            createdAt: speakerNotes.createdAt || new Date().toISOString(),
-        };
-        this.db.data.speakerNotes = this.db.data.speakerNotes || [];
-        this.db.data.speakerNotes.push(newSpeakerNotes);
         await this.db.write();
-        console.log(`🎤 Speaker notes created: ${newSpeakerNotes.id}`);
-        return newSpeakerNotes;
+        return contentData;
     }
 
-    async getSpeakerNotesByProject(projectId: string): Promise<any[]> {
+    async getSlideContent(slideId: string): Promise<SlideContent | null> {
         await this.db.read();
-        this.db.data.speakerNotes = this.db.data.speakerNotes || [];
-        return this.db.data.speakerNotes
-            .filter((sn: any) => sn.projectId === projectId)
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return this.db.data.slideContents.find((c) => c.slideId === slideId) || null;
     }
 
-    async getLatestSpeakerNotes(projectId: string): Promise<any | undefined> {
-        const speakerNotes = await this.getSpeakerNotesByProject(projectId);
-        return speakerNotes[0];
-    }
-
-    // ==================== UTILITY ====================
-
-    async clearAll(): Promise<void> {
+    async getSlideContentsByBlueprint(blueprintId: string): Promise<SlideContent[]> {
         await this.db.read();
-        this.db.data = defaultData;
+
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            return [];
+        }
+
+        const slideIds = new Set(blueprint.slides.map((s) => s.id));
+        return this.db.data.slideContents.filter((c) => slideIds.has(c.slideId));
+    }
+
+    // =============================================================================
+    // SPEAKER NOTES
+    // =============================================================================
+
+    async createSpeakerNote(noteData: SpeakerNote): Promise<SpeakerNote> {
+        await this.db.read();
+
+        // Check if note already exists for this slide
+        const existingIndex = this.db.data.speakerNotes.findIndex(
+            (n) => n.slideId === noteData.slideId
+        );
+
+        if (existingIndex >= 0) {
+            // Update existing
+            this.db.data.speakerNotes[existingIndex] = noteData;
+        } else {
+            // Create new
+            this.db.data.speakerNotes.push(noteData);
+        }
+
         await this.db.write();
-        console.log('🗑️ Database cleared');
+        return noteData;
     }
 
-    async getStats(): Promise<any> {
+    async getSpeakerNote(slideId: string): Promise<SpeakerNote | null> {
         await this.db.read();
-        return {
-            projects: this.db.data.projects.length,
-            documents: this.db.data.documents.length,
-            chunks: this.db.data.chunks.length,
-            embeddings: this.db.data.embeddings.length,
-            analyses: this.db.data.analyses.length,
-            blueprints: this.db.data.blueprints.length,
-            generations: this.db.data.generations?.length || 0,
-            speakerNotes: this.db.data.speakerNotes?.length || 0,
-        };
+        return this.db.data.speakerNotes.find((n) => n.slideId === slideId) || null;
+    }
+
+    async getSpeakerNotesByBlueprint(blueprintId: string): Promise<SpeakerNote[]> {
+        await this.db.read();
+
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            return [];
+        }
+
+        const slideIds = new Set(blueprint.slides.map((s) => s.id));
+        return this.db.data.speakerNotes.filter((n) => slideIds.has(n.slideId));
     }
 }
 

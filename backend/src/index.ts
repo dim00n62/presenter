@@ -12,6 +12,7 @@ import { analysisRouter } from './routes/analysis.js';
 import { generationRouter } from './routes/generation.js';
 import { speakerNotesRouter } from './routes/speaker-notes.js';
 import { healthRouter } from './routes/health.js';
+import { presentationsRouter } from './routes/presentations.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -31,6 +32,7 @@ app.use('/api/analysis', analysisRouter);
 app.use('/api/blueprints', blueprintsRouter);
 app.use('/api/generation', generationRouter);
 app.use('/api/speaker-notes', speakerNotesRouter);
+app.use('/api/presentations', presentationsRouter);
 app.use('/health', healthRouter);
 
 // Health check

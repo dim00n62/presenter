@@ -3,18 +3,36 @@ import { useEffect, useState } from 'react';
 import { Card, Button, Spinner } from '@heroui/react';
 import { api } from '../lib/api';
 
+export type ProjectStatus =
+    | 'created'           // Проект создан, документы загружены
+    | 'parsed'            // Документы распарсены
+    | 'analyzed'          // Анализ завершен
+    | 'blueprint_ready'   // Структура готова
+    | 'content_generated' // Контент создан
+    | 'presentation_ready' // PPTX сгенерирован
+    | 'error';
+
 interface Project {
     id: string;
     name: string;
+    status: ProjectStatus;
     description?: string;
-    // НОВЫЕ ПОЛЯ:
     presentationGoal?: string;      // Цель презентации (одно предложение)
     targetAudience?: string;        // Целевая аудитория
     presentationContext?: string;   // Контекст/повод
     keyMessage?: string;            // Ключевое сообщение
-    status: 'active' | 'completed' | 'archived';
     createdAt: string;
     updatedAt?: string;
+    // Метаданные процесса
+    progress: {
+        parsing: number;      // 0-100
+        analysis: number;     // 0-100
+        blueprint: number;    // 0-100
+        content: number;      // 0-100
+        generation: number;   // 0-100
+    };
+
+    errors?: string[];
 }
 
 interface Props {

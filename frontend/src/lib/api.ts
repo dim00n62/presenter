@@ -50,14 +50,6 @@ export const api = {
         return response.json();
     },
 
-    async deleteProject(id: string) {
-        const response = await fetch(`${API_BASE}/api/projects/${id}`, {
-            method: 'DELETE'
-        });
-        if (!response.ok) throw new Error('Failed to delete project');
-        return response.json();
-    },
-
     // ==================== DOCUMENTS ====================
 
     async uploadDocument(projectId: string, file: File) {
@@ -127,12 +119,6 @@ export const api = {
             body: JSON.stringify({ projectId })
         });
         if (!response.ok) throw new Error('Blueprint generation failed');
-        return response.json();
-    },
-
-    async getBlueprint(blueprintId: string) {
-        const response = await fetch(`${API_BASE}/api/blueprints/${blueprintId}`);
-        if (!response.ok) throw new Error('Blueprint not found');
         return response.json();
     },
 
@@ -232,7 +218,64 @@ export const api = {
         const response = await fetch(`${API_BASE}/health`);
         if (!response.ok) throw new Error('Health check failed');
         return response.json();
-    }
+    },
+
+    async analyzeProject(projectId: string) {
+        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        return response.json();
+    },
+
+    // Шаг 2: Blueprint
+    async createBlueprint(projectId: string, userPreferences?: any) {
+        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/blueprint`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userPreferences }),
+        });
+        return response.json();
+    },
+
+    // Шаг 3: Контент
+    async generateContent(projectId: string) {
+        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/content`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        return response.json();
+    },
+
+    // Шаг 4: PPTX
+    async generatePPTX(projectId: string) {
+        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/generate-pptx`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        return response.json();
+    },
+
+    // Получение данных
+    async getBlueprint(projectId: string) {
+        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/blueprint`);
+        return response.json();
+    },
+
+    async getContent(projectId: string) {
+        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/content`);
+        return response.json();
+    },
+
+    // Playground
+    async createTestPresentation(options: { theme?: string; includeCharts?: boolean }) {
+        const response = await fetch(`${API_BASE}/generation/playground/test-presentation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(options),
+        });
+        return response.json();
+    },
 };
 
 export default api;
