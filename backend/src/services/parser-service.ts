@@ -71,13 +71,12 @@ export class ParserService {
             );
 
             // Save embeddings
-            await db.createEmbeddings(
-                chunks.map((chunk, idx) => ({
-                    chunkId: chunk.id,
-                    vector: vectors[idx],
-                    model: process.env.QWEN_EMBEDDING_MODEL || 'qwen-embedding-v1',
-                }))
-            );
+            await Promise.all(chunks.map((chunk, idx) => db.createEmbedding({
+                chunkId: chunk.id,
+                vector: vectors[idx],
+                model: process.env.QWEN_EMBEDDING_MODEL || 'qwen-embedding-v1',
+            })
+            ));
 
             // Update document status
             await db.updateDocument(documentId, {
