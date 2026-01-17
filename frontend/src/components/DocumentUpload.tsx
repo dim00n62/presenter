@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button, Progress } from '@heroui/react';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 
 interface DocumentUploadProps {
     projectId: string;
@@ -28,7 +29,7 @@ export function DocumentUpload({ projectId, onDocumentUploaded }: DocumentUpload
             ];
 
             if (!allowedTypes.includes(file.type)) {
-                alert('❌ Неподдерживаемый формат!\n\nРазрешены: Excel (.xlsx), PDF, Word (.docx)');
+                toast.error('❌ Неподдерживаемый формат!\n\nРазрешены: Excel (.xlsx), PDF, Word (.docx)');
                 return;
             }
 
@@ -44,7 +45,6 @@ export function DocumentUpload({ projectId, onDocumentUploaded }: DocumentUpload
             setUploadProgress(100);
 
             console.log('✅ File uploaded:', result);
-
             setTimeout(() => {
                 onDocumentUploaded();
                 setUploading(false);
@@ -55,7 +55,7 @@ export function DocumentUpload({ projectId, onDocumentUploaded }: DocumentUpload
             console.error('Upload error:', error);
 
             if (error.message.includes('No text content extracted')) {
-                alert(
+                toast.warning(
                     '⚠️ Это отсканированный PDF или изображение.\n\n' +
                     '💡 Рекомендации:\n' +
                     '• Конвертируйте в DOCX формат\n' +
@@ -63,7 +63,7 @@ export function DocumentUpload({ projectId, onDocumentUploaded }: DocumentUpload
                     '• Откройте PDF в Word и сохраните как DOCX'
                 );
             } else {
-                alert(`❌ Ошибка загрузки: ${error.message}`);
+                toast.error(`❌ Ошибка загрузки: ${error.message}`);
             }
 
             setUploading(false);

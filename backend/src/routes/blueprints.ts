@@ -150,42 +150,4 @@ blueprintsRouter.post('/:id/approve', async (req, res) => {
     }
 });
 
-// Regenerate specific slide
-blueprintsRouter.post('/:id/regenerate-slide', async (req, res) => {
-    try {
-        const { slideId, userFeedback } = req.body;
-
-        if (!slideId) {
-            return res.status(400).json({ error: 'slideId обязателен' });
-        }
-
-        await db.db.read();
-        const blueprint = db.db.data.blueprints.find(b => b.id === req.params.id);
-
-        if (!blueprint) {
-            return res.status(404).json({ error: 'Blueprint не найден' });
-        }
-
-        const slideIndex = blueprint.slides.findIndex(s => s.id === slideId);
-        if (slideIndex === -1) {
-            return res.status(404).json({ error: 'Слайд не найден' });
-        }
-
-        console.log(`🔄 Регенерация слайда ${slideId}`);
-
-        // TODO: Implement regeneration logic
-        // For now, just add a note
-        blueprint.slides[slideIndex].description += ` [Обновлено: ${userFeedback}]`;
-        await db.db.write();
-
-        res.json({
-            success: true,
-            slide: blueprint.slides[slideIndex]
-        });
-
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 export default blueprintsRouter;

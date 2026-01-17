@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Progress, Chip, Textarea, Tabs, Tab } from '@heroui/react';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 
 export function SpeakerNotesView({ projectId }: { projectId: string }) {
     const [notes, setNotes] = useState<any[]>([]);
@@ -29,9 +30,9 @@ export function SpeakerNotesView({ projectId }: { projectId: string }) {
         try {
             const result = await api.generateSpeakerNotes(projectId);
             setNotes(result.speakerNotes);
-            alert(`✅ Готово! Создан текст для ${result.speakerNotes.length} слайдов`);
+            toast.success(`✅ Готово! Создан текст для ${result.speakerNotes.length} слайдов`);
         } catch (error: any) {
-            alert('Ошибка: ' + error.message);
+            toast.error('Ошибка: ' + error.message);
         } finally {
             setGenerating(false);
         }
@@ -39,7 +40,7 @@ export function SpeakerNotesView({ projectId }: { projectId: string }) {
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
-        alert('✅ Скопировано в буфер обмена');
+        toast.success('✅ Скопировано в буфер обмена');
     };
 
     const copyAllNotes = () => {
@@ -66,7 +67,7 @@ ${note.speakerNotes?.transition || ''}
         try {
             await api.exportSpeakerNotesDocx(projectId);
         } catch (error: any) {
-            alert('Ошибка экспорта: ' + error.message);
+            toast.error('Ошибка экспорта: ' + error.message);
         }
     };
 

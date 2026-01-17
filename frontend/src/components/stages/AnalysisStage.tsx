@@ -39,15 +39,15 @@ export function AnalysisStage({
 
     try {
       // Start analysis
-      const documentIds = documents.map(d => d.id);
-      await api.startAnalysis(projectId, documentIds);
+      api.analyze(projectId);
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
       // Monitor progress via SSE
-      const eventSource = new EventSource(`/api/analysis/${projectId}/progress`);
+      const eventSource = new EventSource(`${apiUrl}/api/analysis/progress/${projectId}`);
 
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        
+
         setProgress(data.progress || 0);
         setCurrentStep(data.step || '');
 

@@ -8,6 +8,7 @@ import {
     useDisclosure
 } from '@heroui/react';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 
 export function HomePage() {
     const navigate = useNavigate();
@@ -36,7 +37,7 @@ export function HomePage() {
 
     const handleCreateProject = async () => {
         if (!projectName.trim() || !presentationGoal.trim()) {
-            alert('Пожалуйста, укажите название и цель презентации');
+            toast.warning('Пожалуйста, укажите название и цель презентации');
             return;
         }
 
@@ -60,7 +61,7 @@ export function HomePage() {
             onClose();
             navigate(`/project/${project.id}`);
         } catch (error: any) {
-            alert(`Ошибка: ${error.message}`);
+            toast.error(`Ошибка: ${error.message}`);
         }
     };
 

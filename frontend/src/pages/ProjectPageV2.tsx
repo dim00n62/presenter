@@ -39,13 +39,20 @@ export function ProjectPageV2() {
     }
   }, [projectId]);
 
+  useEffect(() => {
+    console.log(documents.length > 0, documents.some(d => d.status === 'parsing'))
+    if (documents.length > 0 && documents.some(d => d.status === 'parsing')) {
+      setTimeout(loadDocuments, 3000);
+    }
+  }, [documents]);
+
   const loadProject = async () => {
     try {
       const p = await api.getProject(projectId!);
       setProject(p);
 
       // Determine current stage based on project status
-      determineCurrentStage(p);
+      determineCurrentStage();
     } catch (error: any) {
       console.error('Failed to load project:', error);
       navigate('/');
@@ -94,7 +101,7 @@ export function ProjectPageV2() {
     }
   };
 
-  const determineCurrentStage = (proj: any) => {
+  const determineCurrentStage = () => {
     // Logic to determine which stage we're on based on project state
     if (!documents.length) {
       setCurrentStage('documents');
@@ -222,10 +229,7 @@ export function ProjectPageV2() {
             <DocumentsStage
               projectId={projectId!}
               documents={documents}
-              onDocumentsReady={() => {
-                markStageCompleted('documents');
-                goNext();
-              }}
+              onDocumentsReady={loadDocuments}
               onNext={goNext}
             />
           )}

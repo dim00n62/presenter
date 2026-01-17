@@ -100,16 +100,6 @@ export const api = {
         return response.json();
     },
 
-    async quickStart(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/analysis/quick-start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectId })
-        });
-        if (!response.ok) throw new Error('Quick start failed');
-        return response.json();
-    },
-
     // ==================== BLUEPRINTS ====================
 
     async generateBlueprint(projectId: string) {
@@ -147,17 +137,6 @@ export const api = {
     },
 
     // ==================== GENERATION ====================
-
-    async generateContent(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectId })
-        });
-        if (!response.ok) throw new Error('Content generation failed');
-        return response.json();
-    },
-
     async getGeneration(projectId: string) {
         const response = await fetch(`${API_BASE}/api/generation/project/${projectId}`);
         if (!response.ok) throw new Error('Generation not found');
@@ -217,14 +196,6 @@ export const api = {
     async healthCheck() {
         const response = await fetch(`${API_BASE}/health`);
         if (!response.ok) throw new Error('Health check failed');
-        return response.json();
-    },
-
-    async analyzeProject(projectId: string) {
-        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/analyze`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
         return response.json();
     },
 

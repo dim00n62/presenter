@@ -1,9 +1,6 @@
-// frontend/src/components/stages/DocumentsStage.tsx
-
-import { useState } from 'react';
 import { StagePanel } from '../StagePanel';
 import { DocumentUpload } from '../DocumentUpload';
-import { Button, Card, Chip, Progress } from '@heroui/react';
+import { Card, Chip, Progress } from '@heroui/react';
 
 interface DocumentsStageProps {
   projectId: string;
@@ -18,17 +15,8 @@ export function DocumentsStage({
   onDocumentsReady,
   onNext,
 }: DocumentsStageProps) {
-  const [uploading, setUploading] = useState(false);
-
   const allParsed = documents.length > 0 && documents.every(d => d.status === 'parsed');
-  const anyFailed = documents.some(d => d.status === 'failed');
   const parsing = documents.some(d => d.status === 'parsing');
-
-  const handleDocumentsReady = () => {
-    if (allParsed) {
-      onDocumentsReady();
-    }
-  };
 
   return (
     <StagePanel
@@ -42,17 +30,15 @@ export function DocumentsStage({
       status={parsing ? 'loading' : allParsed ? 'success' : 'idle'}
       statusMessage={
         parsing ? 'Обработка документов...' :
-        allParsed ? 'Все документы успешно обработаны!' :
-        undefined
+          allParsed ? 'Все документы успешно обработаны!' :
+            undefined
       }
     >
       <div className="space-y-6">
         {/* Upload Area */}
         <DocumentUpload
           projectId={projectId}
-          onDocumentUploaded={() => {
-            // Reload handled by parent
-          }}
+          onDocumentUploaded={onDocumentsReady}
         />
 
         {/* Documents List */}
@@ -62,7 +48,7 @@ export function DocumentsStage({
               <h3 className="text-lg font-semibold">
                 Загруженные документы ({documents.length})
               </h3>
-              
+
               {allParsed && (
                 <Chip color="success" variant="flat">
                   ✅ Все готово
@@ -77,15 +63,15 @@ export function DocumentsStage({
                     <div className="flex items-center gap-3">
                       <span className="text-3xl">
                         {doc.mimeType.includes('pdf') ? '📄' :
-                         doc.mimeType.includes('excel') ? '📊' :
-                         doc.mimeType.includes('word') ? '📝' : '📎'}
+                          doc.mimeType.includes('excel') ? '📊' :
+                            doc.mimeType.includes('word') ? '📝' : '📎'}
                       </span>
                       <div>
                         <p className="font-medium text-gray-800">{doc.filename}</p>
                         <p className="text-xs text-gray-500">
                           {(doc.size / 1024 / 1024).toFixed(2)} MB
                         </p>
-                        
+
                         {/* Parsing progress */}
                         {doc.status === 'parsing' && (
                           <Progress
@@ -101,16 +87,16 @@ export function DocumentsStage({
                     <Chip
                       color={
                         doc.status === 'parsed' ? 'success' :
-                        doc.status === 'failed' ? 'danger' :
-                        doc.status === 'parsing' ? 'primary' :
-                        'default'
+                          doc.status === 'failed' ? 'danger' :
+                            doc.status === 'parsing' ? 'primary' :
+                              'default'
                       }
                       variant="flat"
                     >
                       {doc.status === 'parsed' ? '✅ Готово' :
-                       doc.status === 'failed' ? '❌ Ошибка' :
-                       doc.status === 'parsing' ? '⏳ Обработка' :
-                       '📤 Загружен'}
+                        doc.status === 'failed' ? '❌ Ошибка' :
+                          doc.status === 'parsing' ? '⏳ Обработка' :
+                            '📤 Загружен'}
                     </Chip>
                   </div>
 

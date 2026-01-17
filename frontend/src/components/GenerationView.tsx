@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Progress } from '@heroui/react';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 
 export function GenerationView({ projectId }: { projectId: string }) {
     const [generating, setGenerating] = useState(false);
@@ -31,10 +32,10 @@ export function GenerationView({ projectId }: { projectId: string }) {
             setGenerating(true);
             const result = await api.generateContent(projectId);
             setSlideContents(result.slideContents || []);
-            alert('✅ Контент сгенерирован!');
+            toast.success('✅ Контент сгенерирован!');
             loadGeneration();
         } catch (error: any) {
-            alert(`Ошибка: ${error.message}`);
+            toast.error(`Ошибка: ${error.message}`);
         } finally {
             setGenerating(false);
         }
@@ -44,7 +45,7 @@ export function GenerationView({ projectId }: { projectId: string }) {
         try {
             await api.exportPPTX(projectId);
         } catch (error: any) {
-            alert(`Ошибка экспорта: ${error.message}`);
+            toast.error(`Ошибка экспорта: ${error.message}`);
         }
     };
 

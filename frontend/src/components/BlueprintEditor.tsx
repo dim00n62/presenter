@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, Button, Input } from '@heroui/react';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 
 interface BlueprintEditorProps {
     projectId: string;
@@ -77,9 +78,9 @@ export function BlueprintEditor({ projectId, blueprint: initialBlueprint, onAppr
         try {
             setSaving(true);
             await api.updateBlueprint(blueprint.id, slides);
-            alert('✅ Изменения сохранены');
+            toast.success('✅ Изменения сохранены');
         } catch (error: any) {
-            alert(`Ошибка: ${error.message}`);
+            toast.error(`Ошибка: ${error.message}`);
         } finally {
             setSaving(false);
         }
@@ -93,13 +94,13 @@ export function BlueprintEditor({ projectId, blueprint: initialBlueprint, onAppr
             // Then approve
             await api.approveBlueprint(blueprint.id);
 
-            alert('✅ Структура утверждена! Можно переходить к генерации контента.');
+            toast.success('✅ Структура утверждена! Можно переходить к генерации контента.');
 
             if (onApproved) {
                 onApproved();
             }
         } catch (error: any) {
-            alert(`Ошибка: ${error.message}`);
+            toast.error(`Ошибка: ${error.message}`);
         }
     };
 

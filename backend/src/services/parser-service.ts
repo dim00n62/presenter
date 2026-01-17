@@ -86,12 +86,6 @@ export class ParserService {
             });
 
             console.log(`✅ Document ${documentId} processed successfully`);
-
-            // Trigger auto-analysis in background (non-blocking)
-            this.triggerAutoAnalysis(documentId).catch(err =>
-                console.error('Auto-analysis trigger error:', err)
-            );
-
             return { chunks: chunks.length, embeddings: chunks.length };
         } catch (error: any) {
             console.error(`❌ Document processing failed:`, error);
@@ -100,25 +94,6 @@ export class ParserService {
                 error: error.message
             });
             throw error;
-        }
-    }
-
-    /**
-     * Trigger auto-analysis after parsing (non-blocking)
-     */
-    private async triggerAutoAnalysis(documentId: string): Promise<void> {
-        try {
-            // Import dynamically to avoid circular dependency
-            const { autoAnalysisService } = await import('./auto-analysis-service.js');
-
-            const doc = await db.getDocument(documentId);
-            if (doc && doc.projectId) {
-                console.log(`🚀 Starting auto-analysis for project ${doc.projectId}`);
-                await autoAnalysisService.autoAnalyze(documentId, doc.projectId);
-            }
-        } catch (error) {
-            console.error('Auto-analysis failed:', error);
-            // Don't throw - this is background process
         }
     }
 }

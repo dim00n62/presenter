@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StagePanel } from '../StagePanel';
 import { Button, Card, Chip, Progress } from '@heroui/react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 
 interface ContentStageProps {
   projectId: string;
@@ -30,14 +31,14 @@ export function ContentStage({
     setIsGenerating(true);
     try {
       // Start generation
-      await api.generateAllSlides(projectId, blueprint.id);
+      await api.generateContent(projectId);
 
       // Monitor progress
       const eventSource = new EventSource(`/api/generation/${projectId}/progress`);
 
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        
+
         setProgress(data.progress || 0);
         setCurrentSlide(data.currentSlide || '');
 
@@ -48,7 +49,7 @@ export function ContentStage({
         } else if (data.status === 'failed') {
           eventSource.close();
           setIsGenerating(false);
-          alert('Ошибка генерации: ' + data.error);
+          toast.error('Ошибка генерации: ' + data.error);
         }
       };
 
@@ -59,13 +60,13 @@ export function ContentStage({
 
     } catch (error: any) {
       setIsGenerating(false);
-      alert(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     }
   };
 
   const loadContent = async () => {
     try {
-      const contents = await api.getSlideContents(projectId);
+      const contents = await api.getContent(projectId);
       onContentGenerated(contents);
     } catch (error) {
       console.error('Failed to load contents:', error);
@@ -183,7 +184,7 @@ export function ContentStage({
                           {content.content.subtitle}
                         </p>
                       )}
-                      
+
                       {/* Body preview */}
                       {content.content.body && (
                         <div className="text-sm text-gray-700 mt-2">

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { StagePanel } from '../StagePanel';
 import { Button, Card, Chip, Input, Textarea, Select, SelectItem } from '@heroui/react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 
 interface BlueprintStageProps {
   projectId: string;
@@ -36,7 +37,7 @@ export function BlueprintStage({
       const result = await api.generateBlueprint(projectId);
       setLocalBlueprint(result.blueprint);
     } catch (error: any) {
-      alert(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -47,7 +48,7 @@ export function BlueprintStage({
       const updated = await api.approveBlueprint(projectId, localBlueprint.id);
       onBlueprintApproved(updated);
     } catch (error: any) {
-      alert(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     }
   };
 
@@ -85,7 +86,7 @@ export function BlueprintStage({
       priority: 'medium',
       estimatedComplexity: 'simple',
     };
-    
+
     setLocalBlueprint({
       ...localBlueprint,
       slides: [...localBlueprint.slides, newSlide],
@@ -95,16 +96,16 @@ export function BlueprintStage({
   const moveSlide = (slideId: string, direction: 'up' | 'down') => {
     const slides = [...localBlueprint.slides];
     const index = slides.findIndex(s => s.id === slideId);
-    
+
     if (direction === 'up' && index > 0) {
       [slides[index], slides[index - 1]] = [slides[index - 1], slides[index]];
     } else if (direction === 'down' && index < slides.length - 1) {
       [slides[index], slides[index + 1]] = [slides[index + 1], slides[index]];
     }
-    
+
     // Update order
     slides.forEach((s, i) => s.order = i + 1);
-    
+
     setLocalBlueprint({ ...localBlueprint, slides });
   };
 
@@ -198,7 +199,7 @@ export function BlueprintStage({
                       <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700">
                         {index + 1}
                       </div>
-                      
+
                       {/* Move buttons */}
                       <div className="flex flex-col gap-1">
                         <button
@@ -227,15 +228,15 @@ export function BlueprintStage({
                             <p className="text-sm text-gray-600 mt-1">{slide.description}</p>
                           )}
                         </div>
-                        
+
                         <div className="flex gap-2">
                           <Chip size="sm" variant="flat">
                             {slide.type}
                           </Chip>
                           <Chip size="sm" variant="flat" color={
                             slide.priority === 'critical' ? 'danger' :
-                            slide.priority === 'high' ? 'warning' :
-                            'default'
+                              slide.priority === 'high' ? 'warning' :
+                                'default'
                           }>
                             {slide.priority}
                           </Chip>

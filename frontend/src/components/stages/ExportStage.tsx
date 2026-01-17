@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StagePanel } from '../StagePanel';
 import { Button, Card, RadioGroup, Radio, Select, SelectItem } from '@heroui/react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 
 interface ExportStageProps {
   projectId: string;
@@ -36,7 +37,7 @@ export function ExportStage({
 
       setExportedFile(result.downloadUrl);
     } catch (error: any) {
-      alert(`Ошибка экспорта: ${error.message}`);
+      toast.error(`Ошибка экспорта: ${error.message}`);
     } finally {
       setIsExporting(false);
     }
@@ -139,7 +140,7 @@ export function ExportStage({
             {/* Options */}
             <div className="space-y-3">
               <h4 className="font-semibold">Дополнительные опции</h4>
-              
+
               <Card className="p-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -186,7 +187,7 @@ export function ExportStage({
                 <p className="text-green-700 mb-6">
                   Ваша PowerPoint презентация успешно создана
                 </p>
-                
+
                 <div className="flex gap-3 justify-center">
                   <Button
                     color="success"
@@ -197,7 +198,7 @@ export function ExportStage({
                   >
                     Скачать PPTX
                   </Button>
-                  
+
                   <Button
                     variant="light"
                     size="lg"
@@ -217,13 +218,13 @@ export function ExportStage({
                 <p className="font-semibold text-gray-800">{slideContents.length}</p>
                 <p className="text-xs text-gray-600">слайдов</p>
               </Card>
-              
+
               <Card className="p-4 text-center">
                 <p className="text-3xl mb-1">🎨</p>
                 <p className="font-semibold text-gray-800">{theme}</p>
                 <p className="text-xs text-gray-600">тема</p>
               </Card>
-              
+
               <Card className="p-4 text-center">
                 <p className="text-3xl mb-1">🎤</p>
                 <p className="font-semibold text-gray-800">

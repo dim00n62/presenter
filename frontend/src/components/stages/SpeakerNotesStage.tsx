@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StagePanel } from '../StagePanel';
 import { Button, Card, Chip, Textarea } from '@heroui/react';
 import { api } from '../../lib/api';
+import { toast } from 'sonner';
 
 interface SpeakerNotesStageProps {
   projectId: string;
@@ -33,7 +34,7 @@ export function SpeakerNotesStage({
       setLocalNotes(notes);
       onNotesGenerated(notes);
     } catch (error: any) {
-      alert(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -50,9 +51,9 @@ export function SpeakerNotesStage({
   const saveNotes = async () => {
     try {
       await api.saveSpeakerNotes(projectId, localNotes);
-      alert('Заметки сохранены!');
+      toast.success('Заметки сохранены!');
     } catch (error: any) {
-      alert(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     }
   };
 
@@ -137,14 +138,14 @@ export function SpeakerNotesStage({
             <div className="space-y-4">
               {localNotes.map((note: any, index: number) => {
                 const slideContent = slideContents.find(s => s.slideId === note.slideId);
-                
+
                 return (
                   <Card key={note.slideId} className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-sm font-bold text-orange-700">
                         {index + 1}
                       </div>
-                      
+
                       <div className="flex-1 space-y-3">
                         <div>
                           <h4 className="font-semibold text-gray-800">

@@ -33,7 +33,7 @@ export function AnalysisView({ projectId }: Props) {
         setError(null);
 
         try {
-            await api.startAnalysis(projectId);
+            await api.analyze(projectId);
 
             // Poll for results every 3 seconds
             let attempts = 0;

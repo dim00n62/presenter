@@ -401,18 +401,6 @@ export class QwenClient {
     }
 
     /**
-     * Stream chat (for future use with streaming responses)
-     */
-    async chatStream(
-        messages: QwenChatMessage[],
-        onChunk: (chunk: string) => void,
-        temperature = 0.3
-    ): Promise<void> {
-        // TODO: Implement streaming if Qwen API supports it
-        throw new Error('Streaming not yet implemented');
-    }
-
-    /**
      * Health check
      */
     async healthCheck(): Promise<boolean> {

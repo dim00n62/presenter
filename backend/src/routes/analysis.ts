@@ -2,7 +2,6 @@
 
 import { Router } from 'express';
 import { analysisAgent } from '../agents/analysis-agent.js';
-import { autoAnalysisService } from '../services/auto-analysis-service.js';
 import { db } from '../db/index.js';
 
 export const analysisRouter = Router();
@@ -30,26 +29,6 @@ analysisRouter.post('/analyze', async (req, res) => {
         res.json(analysis);
     } catch (error: any) {
         console.error('Analysis error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Quick start - skip analysis
-analysisRouter.post('/quick-start', async (req, res) => {
-    try {
-        const { projectId } = req.body;
-
-        console.log('🚀 Quick start for project:', projectId);
-
-        const blueprint = await autoAnalysisService.quickStart(projectId);
-
-        res.json({
-            success: true,
-            blueprint,
-            message: 'Базовая структура создана. Вы можете начать редактирование.'
-        });
-    } catch (error: any) {
-        console.error('Quick start error:', error);
         res.status(500).json({ error: error.message });
     }
 });

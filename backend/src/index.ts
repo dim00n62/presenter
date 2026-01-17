@@ -35,18 +35,6 @@ app.use('/api/speaker-notes', speakerNotesRouter);
 app.use('/api/presentations', presentationsRouter);
 app.use('/health', healthRouter);
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        services: {
-            database: db ? 'connected' : 'disconnected',
-            qwen: process.env.QWEN_API_URL ? 'configured' : 'not configured'
-        }
-    });
-});
-
 // Error handling
 app.use((err: any, req: any, res: any, next: any) => {
     console.error('Error:', err);
