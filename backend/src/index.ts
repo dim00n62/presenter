@@ -1,7 +1,6 @@
 // backend/src/index.ts
 import express from 'express';
 import cors from 'cors';
-import multer from 'multer';
 import 'dotenv/config'
 import { db } from './db/index.js';
 import { blueprintsRouter } from './routes/blueprints.js';
@@ -36,7 +35,7 @@ app.use('/api/presentations', presentationsRouter);
 app.use('/health', healthRouter);
 
 // Error handling
-app.use((err: any, req: any, res: any, next: any) => {
+app.use((err: any, _req: any, res: any, _next: any) => {
     console.error('Error:', err);
     res.status(500).json({
         error: err.message || 'Internal server error'

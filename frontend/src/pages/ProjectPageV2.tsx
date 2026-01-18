@@ -8,6 +8,7 @@ import type { WorkflowStage } from '../components/WorkflowStepper';
 import { api } from '../lib/api';
 
 // Stage components (будут созданы отдельно)
+import { ProjectSetupStage } from '../components/stages/ProjectSetupStage';
 import { DocumentsStage } from '../components/stages/DocumentsStage';
 import { AnalysisStage } from '../components/stages/AnalysisStage';
 import { BlueprintStage } from '../components/stages/BlueprintStage';
@@ -20,8 +21,8 @@ export function ProjectPageV2() {
   const navigate = useNavigate();
 
   const [project, setProject] = useState<any>(null);
-  const [currentStage, setCurrentStage] = useState<WorkflowStage>('documents');
-  const [completedStages, setCompletedStages] = useState<WorkflowStage[]>(['project_setup']);
+  const [currentStage, setCurrentStage] = useState<WorkflowStage>('project_setup');
+  const [completedStages, setCompletedStages] = useState<WorkflowStage[]>([]);
 
   // Data for each stage - lazy loaded per stage
   const [documents, setDocuments] = useState<any[]>([]);
@@ -49,7 +50,6 @@ export function ProjectPageV2() {
   }, [currentStage]);
 
   useEffect(() => {
-    console.log(documents.length > 0, documents.some(d => d.status === 'parsing'))
     if (documents.length > 0 && documents.some(d => d.status === 'parsing')) {
       setTimeout(loadDocuments, 3000);
     }
@@ -229,7 +229,7 @@ export function ProjectPageV2() {
     const currentIndex = ['project_setup', 'documents', 'analysis', 'blueprint', 'content', 'speaker_notes', 'export'].indexOf(currentStage);
 
     // Can go to completed stages or next stage
-    if (completedStages.includes(stage) || stageIndex === currentIndex + 1) {
+    if (completedStages.includes(stage) || stageIndex === currentIndex + 1 || stage === 'project_setup') {
       setCurrentStage(stage);
     }
   };
@@ -321,6 +321,14 @@ export function ProjectPageV2() {
 
         {/* Stage Content */}
         <div className="mt-6">
+          {currentStage === 'project_setup' && (
+            <ProjectSetupStage
+              projectId={projectId!}
+              project={project}
+              onNext={goNext}
+            />
+          )}
+
           {currentStage === 'documents' && (
             <DocumentsStage
               projectId={projectId!}

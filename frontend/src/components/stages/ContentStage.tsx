@@ -31,6 +31,8 @@ export function ContentStage({
     loadContent();
   }, []);
 
+  console.log(slideContents);
+
   const generateContent = async () => {
     setIsGenerating(true);
     try {
@@ -71,7 +73,7 @@ export function ContentStage({
   const loadContent = async () => {
     try {
       const contents = await api.getContent(projectId);
-      onContentGenerated(contents);
+      onContentGenerated(contents.slideContents);
     } catch (error) {
       console.error('Failed to load contents:', error);
     }
@@ -206,8 +208,8 @@ export function ContentStage({
 
                       {/* Metadata */}
                       <div className="flex gap-3 mt-2 text-xs text-gray-500">
-                        <span>📊 Источников: {content.metadata.dataSources?.length || 0}</span>
-                        <span>⭐ Уверенность: {content.metadata.confidence}%</span>
+                        <span>📊 Источников: {content.contentMetadata.dataSources?.length || 0}</span>
+                        <span>⭐ Уверенность: {content.contentMetadata.confidence}%</span>
                       </div>
                     </div>
                   </div>

@@ -2,7 +2,7 @@
 
 import { Card } from '@heroui/react';
 
-export type WorkflowStage = 
+export type WorkflowStage =
   | 'project_setup'      // Настройка проекта
   | 'documents'          // Загрузка документов
   | 'analysis'           // AI анализ
@@ -82,7 +82,7 @@ export function WorkflowStepper({
         {WORKFLOW_STEPS.map((step, index) => {
           const isCompleted = completedStages.includes(step.id);
           const isCurrent = step.id === currentStage;
-          const isAccessible = isCompleted || isCurrent || index === currentIndex + 1;
+          const isAccessible = isCompleted || isCurrent || index === currentIndex + 1 || 1;
           const isPast = index < currentIndex;
 
           return (
@@ -107,13 +107,13 @@ export function WorkflowStepper({
                   `}>
                     {step.icon}
                   </div>
-                  
+
                   {isCompleted && (
                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">✓</span>
                     </div>
                   )}
-                  
+
                   {isCurrent && (
                     <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />

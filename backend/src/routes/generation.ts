@@ -3,7 +3,6 @@
 import { Router } from 'express';
 import { db } from '../db/index.js';
 import { analysisAgent } from '../agents/analysis-agent.js';
-import { blueprintAgent } from '../agents/blueprint-agent.js';
 import { contentAgent } from '../agents/content-agent.js';
 import { generatePresentation } from '../services/pptx-generator.js';
 import fs from 'fs/promises';
@@ -107,10 +106,15 @@ router.post('/projects/:id/content', async (req, res) => {
         await db.updateProject(projectId, { progress: { content: 30 } });
         const slideContents = await contentAgent.generateAllSlides(projectId, blueprint);
 
-        // Save slide contents
-        for (const content of slideContents) {
-            await db.createSlideContent(content);
-        }
+        // Save slide contents directly into blueprint.slides
+        await db.updateMultipleSlideContents(
+            blueprint.id,
+            slideContents.map(sc => ({
+                slideId: sc.slideId,
+                content: sc.content,
+                contentMetadata: sc.metadata
+            }))
+        );
 
         await db.updateProject(projectId, {
             status: 'content_generated',
@@ -162,15 +166,17 @@ router.post('/projects/:id/generate-pptx', async (req, res) => {
         }
 
         const blueprint = await db.getBlueprint(project.blueprintId);
-        const slideContents = await db.getSlideContentsByBlueprint(project.blueprintId);
 
-        if (slideContents.length === 0) {
+        // Get slides with content from blueprint
+        const slidesWithContent = blueprint.slides.filter(s => s.content);
+
+        if (slidesWithContent.length === 0) {
             throw new Error('No slide content found. Generate content first.');
         }
 
         console.log('📊 Generating presentation:', {
             slidesInBlueprint: blueprint.slides.length,
-            slideContentsAvailable: slideContents.length
+            slideContentsAvailable: slidesWithContent.length
         });
 
         // Generate PPTX
@@ -178,7 +184,7 @@ router.post('/projects/:id/generate-pptx', async (req, res) => {
 
         const pptxBuffer = await generatePresentation(
             blueprint,
-            slideContents,
+            slidesWithContent,
             {
                 title: project.name,
                 author: 'Presentation Agent',

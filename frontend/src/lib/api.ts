@@ -156,7 +156,7 @@ export const api = {
     },
 
     async exportPPTX(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/export-pptx/${projectId}`);
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/generate-pptx`);
         if (!response.ok) throw new Error('Export failed');
 
         const blob = await response.blob();
@@ -256,7 +256,7 @@ export const api = {
 
     // Playground
     async createTestPresentation(options: { theme?: string; includeCharts?: boolean }) {
-        const response = await fetch(`${API_BASE}/generation/playground/test-presentation`, {
+        const response = await fetch(`${API_BASE}/api/generation/playground/test-presentation`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(options),

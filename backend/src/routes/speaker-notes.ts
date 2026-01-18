@@ -12,7 +12,7 @@ speakerNotesRouter.post('/generate', async (req, res) => {
     try {
         const { projectId } = req.body;
 
-        // Get blueprint and content
+        // Get blueprint with content
         await db.db.read();
 
         const blueprint = db.db.data.blueprints
@@ -20,39 +20,43 @@ speakerNotesRouter.post('/generate', async (req, res) => {
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
         if (!blueprint) {
-            return res.status(404).json({ error: 'Утвержденный blueprint не найден' });
+            return res.status(404).json({ error: 'Blueprint не найден' });
         }
 
-        const generation = db.db.data.generations
-            ?.filter((g: any) => g.projectId === projectId)
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-
-        if (!generation) {
-            return res.status(404).json({ error: 'Контент не сгенерирован' });
+        // Check if slides have content
+        const slidesWithContent = blueprint.slides.filter(s => s.content);
+        if (slidesWithContent.length === 0) {
+            return res.status(404).json({
+                error: 'Контент не сгенерирован. Сначала сгенерируйте контент слайдов.'
+            });
         }
 
-        console.log('🎤 Генерация speaker notes...');
+        console.log('🎤 Генерация speaker notes для', slidesWithContent.length, 'слайдов...');
 
+        // Generate speaker notes for each slide
         const speakerNotes = await speakerNotesAgent.generateForPresentation(
             blueprint,
-            generation.slideContents
+            slidesWithContent
         );
 
-        // Save to DB
-        const record = {
-            id: crypto.randomUUID(),
-            projectId,
-            blueprintId: blueprint.id,
-            notes: speakerNotes,
-            createdAt: new Date().toISOString(),
-        };
+        // Update slides with speaker notes in blueprint
+        for (let i = 0; i < speakerNotes.length; i++) {
+            const note = speakerNotes[i];
+            const slide = blueprint.slides.find(s => s.id === note.slideId);
+            if (slide) {
+                slide.speakerNotes = note.speakerNotes;
+            }
+        }
 
-        await db.createSpeakerNotes(record);
+        blueprint.updatedAt = new Date().toISOString();
+        await db.db.write();
 
         res.json({
             success: true,
             speakerNotes: speakerNotes,
-            totalDuration: speakerNotes.reduce((sum, n) => sum + n.speakerNotes.timing.estimated, 0),
+            totalDuration: speakerNotes.reduce((sum, n) =>
+                sum + (n.speakerNotes?.timing?.estimated || 60), 0
+            ),
         });
 
     } catch (error: any) {
@@ -66,16 +70,24 @@ speakerNotesRouter.get('/project/:projectId', async (req, res) => {
     try {
         await db.db.read();
 
-        const speakerNotesRecord = db.db.data.speakerNotes
-            ?.filter((sn: any) => sn.projectId === req.params.projectId)
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+        const blueprint = db.db.data.blueprints
+            .filter(b => b.projectId === req.params.projectId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
-        if (!speakerNotesRecord) {
-            // Return empty array instead of 404 - notes just haven't been generated yet
+        if (!blueprint) {
+            // Return empty array - blueprint not created yet
             return res.json([]);
         }
 
-        res.json(speakerNotesRecord.notes || []);
+        // Extract speaker notes from slides
+        const speakerNotes = blueprint.slides
+            .filter(s => s.speakerNotes)
+            .map(s => ({
+                slideId: s.id,
+                speakerNotes: s.speakerNotes,
+            }));
+
+        res.json(speakerNotes);
 
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -85,9 +97,20 @@ speakerNotesRouter.get('/project/:projectId', async (req, res) => {
 // Export to DOCX
 speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
     try {
-        const speakerNotesRecord = await db.getLatestSpeakerNotes(req.params.projectId);
+        await db.db.read();
 
-        if (!speakerNotesRecord) {
+        const blueprint = db.db.data.blueprints
+            .filter(b => b.projectId === req.params.projectId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+        if (!blueprint) {
+            return res.status(404).json({ error: 'Blueprint не найден' });
+        }
+
+        // Get slides with speaker notes
+        const slidesWithNotes = blueprint.slides.filter(s => s.speakerNotes);
+
+        if (slidesWithNotes.length === 0) {
             return res.status(404).json({ error: 'Speaker notes не найдены' });
         }
 
@@ -102,9 +125,10 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
             new Paragraph({ text: '' }),
         ];
 
-        speakerNotesRecord.notes.forEach((note: any, idx: number) => {
-            // Проверяем что note валидный
-            if (!note.speakerNotes) {
+        slidesWithNotes.forEach((slide, idx: number) => {
+            const speakerNotes = slide.speakerNotes;
+
+            if (!speakerNotes) {
                 console.warn(`⚠️ Пропускаем слайд ${idx + 1} - нет speaker notes`);
                 return;
             }
@@ -119,12 +143,12 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
             );
 
             // Intro
-            if (note.speakerNotes.intro) {
+            if (speakerNotes.intro) {
                 children.push(
                     new Paragraph({
                         children: [
                             new TextRun({ text: 'Вступление: ', bold: true }),
-                            new TextRun({ text: note.speakerNotes.intro }),
+                            new TextRun({ text: speakerNotes.intro }),
                         ],
                     }),
                     new Paragraph({ text: '' })
@@ -132,7 +156,7 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
             }
 
             // Body
-            if (note.speakerNotes.body) {
+            if (speakerNotes.body) {
                 children.push(
                     new Paragraph({
                         children: [
@@ -140,19 +164,19 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
                         ],
                     }),
                     new Paragraph({
-                        text: note.speakerNotes.body,
+                        text: speakerNotes.body,
                     }),
                     new Paragraph({ text: '' })
                 );
             }
 
             // Transition
-            if (note.speakerNotes.transition) {
+            if (speakerNotes.transition) {
                 children.push(
                     new Paragraph({
                         children: [
                             new TextRun({ text: 'Переход: ', bold: true }),
-                            new TextRun({ text: note.speakerNotes.transition }),
+                            new TextRun({ text: speakerNotes.transition }),
                         ],
                     }),
                     new Paragraph({ text: '' })
@@ -160,7 +184,7 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
             }
 
             // Key points
-            if (note.speakerNotes.keyPoints && note.speakerNotes.keyPoints.length > 0) {
+            if (speakerNotes.keyPoints && speakerNotes.keyPoints.length > 0) {
                 children.push(
                     new Paragraph({
                         children: [
@@ -169,7 +193,7 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
                     })
                 );
 
-                note.speakerNotes.keyPoints.forEach((point: any) => {
+                speakerNotes.keyPoints.forEach((point: any) => {
                     const pointText = typeof point === 'string' ? point :
                         (point && point.main) ? point.main :
                             String(point);
@@ -186,10 +210,10 @@ speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
             }
 
             // Timing
-            if (note.speakerNotes.timing) {
+            if (speakerNotes.timing) {
                 children.push(
                     new Paragraph({
-                        text: `⏱️ Время выступления: ~${note.speakerNotes.timing.estimated} секунд`,
+                        text: `⏱️ Время выступления: ~${speakerNotes.timing.estimated} секунд`,
                         italics: true,
                     }),
                     new Paragraph({ text: '' })

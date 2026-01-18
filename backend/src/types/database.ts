@@ -131,6 +131,30 @@ export const BlueprintSlideSchema = z.object({
     }),
     priority: z.enum(['critical', 'high', 'medium', 'low']),
     estimatedComplexity: z.enum(['simple', 'medium', 'complex']),
+    // Generated content (optional - filled after content generation)
+    content: z.object({
+        title: z.string(),
+        subtitle: z.string().optional(),
+        body: z.any(),
+        footer: z.string().optional(),
+        sources: z.array(z.string()).optional(),
+        visualHints: z.any().optional(),
+    }).optional(),
+    // Content metadata (optional)
+    contentMetadata: z.object({
+        dataSources: z.array(z.string()),
+        confidence: z.number(),
+        suggestedDuration: z.number(),
+    }).optional(),
+    // Speaker notes (optional - filled after speaker notes generation)
+    speakerNotes: z.object({
+        intro: z.string().optional(),
+        body: z.string().optional(),
+        transition: z.string().optional(),
+        keyPoints: z.array(z.string()).optional(),
+        emphasis: z.array(z.any()).optional(),
+        timing: z.any().optional(),
+    }).optional(),
 });
 
 export const BlueprintSchema = z.object({
@@ -202,6 +226,5 @@ export interface Database {
     embeddings: Embedding[];
     analyses: Analysis[];
     blueprints: Blueprint[];
-    slideContents: SlideContent[];
-    speakerNotes: SpeakerNote[];
+    // slideContents и speakerNotes теперь внутри blueprints.slides
 }

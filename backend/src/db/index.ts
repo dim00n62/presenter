@@ -12,8 +12,7 @@ import {
     Embedding,
     Analysis,
     Blueprint,
-    SlideContent,
-    SpeakerNote,
+    BlueprintSlide,
 } from '../types/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,8 +28,6 @@ const defaultData: Database = {
     embeddings: [],
     analyses: [],
     blueprints: [],
-    slideContents: [],
-    speakerNotes: [],
 };
 
 class DatabaseService {
@@ -438,35 +435,61 @@ class DatabaseService {
     }
 
     // =============================================================================
-    // SLIDE CONTENT
+    // SLIDE CONTENT - теперь хранится внутри blueprint.slides
     // =============================================================================
 
-    async createSlideContent(contentData: SlideContent): Promise<SlideContent> {
+    /**
+     * Обновить content для конкретного слайда в blueprint
+     */
+    async updateSlideContent(
+        blueprintId: string,
+        slideId: string,
+        content: any,
+        contentMetadata?: any
+    ): Promise<BlueprintSlide> {
         await this.db.read();
 
-        // Check if content already exists for this slide
-        const existingIndex = this.db.data.slideContents.findIndex(
-            (c) => c.slideId === contentData.slideId
-        );
-
-        if (existingIndex >= 0) {
-            // Update existing
-            this.db.data.slideContents[existingIndex] = contentData;
-        } else {
-            // Create new
-            this.db.data.slideContents.push(contentData);
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            throw new Error(`Blueprint ${blueprintId} not found`);
         }
 
+        const slide = blueprint.slides.find((s) => s.id === slideId);
+        if (!slide) {
+            throw new Error(`Slide ${slideId} not found in blueprint ${blueprintId}`);
+        }
+
+        // Update slide content
+        slide.content = content;
+        if (contentMetadata) {
+            slide.contentMetadata = contentMetadata;
+        }
+
+        blueprint.updatedAt = new Date().toISOString();
         await this.db.write();
-        return contentData;
+
+        return slide;
     }
 
-    async getSlideContent(slideId: string): Promise<SlideContent | null> {
+    /**
+     * Получить content конкретного слайда
+     */
+    async getSlideContent(blueprintId: string, slideId: string): Promise<any | null> {
         await this.db.read();
-        return this.db.data.slideContents.find((c) => c.slideId === slideId) || null;
+
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            return null;
+        }
+
+        const slide = blueprint.slides.find((s) => s.id === slideId);
+        return slide?.content || null;
     }
 
-    async getSlideContentsByBlueprint(blueprintId: string): Promise<SlideContent[]> {
+    /**
+     * Получить все слайды с контентом из blueprint
+     */
+    async getSlideContentsByBlueprint(blueprintId: string): Promise<BlueprintSlide[]> {
         await this.db.read();
 
         const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
@@ -474,40 +497,88 @@ class DatabaseService {
             return [];
         }
 
-        const slideIds = new Set(blueprint.slides.map((s) => s.id));
-        return this.db.data.slideContents.filter((c) => slideIds.has(c.slideId));
+        // Возвращаем только слайды, у которых есть content
+        return blueprint.slides.filter((s) => s.content !== undefined);
     }
 
-    // =============================================================================
-    // SPEAKER NOTES
-    // =============================================================================
-
-    async createSpeakerNote(noteData: SpeakerNote): Promise<SpeakerNote> {
+    /**
+     * Массово обновить content для нескольких слайдов
+     */
+    async updateMultipleSlideContents(
+        blueprintId: string,
+        slideContents: Array<{ slideId: string; content: any; contentMetadata?: any }>
+    ): Promise<void> {
         await this.db.read();
 
-        // Check if note already exists for this slide
-        const existingIndex = this.db.data.speakerNotes.findIndex(
-            (n) => n.slideId === noteData.slideId
-        );
-
-        if (existingIndex >= 0) {
-            // Update existing
-            this.db.data.speakerNotes[existingIndex] = noteData;
-        } else {
-            // Create new
-            this.db.data.speakerNotes.push(noteData);
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            throw new Error(`Blueprint ${blueprintId} not found`);
         }
 
+        for (const { slideId, content, contentMetadata } of slideContents) {
+            const slide = blueprint.slides.find((s) => s.id === slideId);
+            if (slide) {
+                slide.content = content;
+                if (contentMetadata) {
+                    slide.contentMetadata = contentMetadata;
+                }
+            }
+        }
+
+        blueprint.updatedAt = new Date().toISOString();
         await this.db.write();
-        return noteData;
     }
 
-    async getSpeakerNote(slideId: string): Promise<SpeakerNote | null> {
+    // =============================================================================
+    // SPEAKER NOTES - теперь хранится внутри blueprint.slides
+    // =============================================================================
+
+    /**
+     * Обновить speaker notes для конкретного слайда
+     */
+    async updateSpeakerNotes(
+        blueprintId: string,
+        slideId: string,
+        speakerNotes: any
+    ): Promise<BlueprintSlide> {
         await this.db.read();
-        return this.db.data.speakerNotes.find((n) => n.slideId === slideId) || null;
+
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            throw new Error(`Blueprint ${blueprintId} not found`);
+        }
+
+        const slide = blueprint.slides.find((s) => s.id === slideId);
+        if (!slide) {
+            throw new Error(`Slide ${slideId} not found in blueprint ${blueprintId}`);
+        }
+
+        slide.speakerNotes = speakerNotes;
+        blueprint.updatedAt = new Date().toISOString();
+        await this.db.write();
+
+        return slide;
     }
 
-    async getSpeakerNotesByBlueprint(blueprintId: string): Promise<SpeakerNote[]> {
+    /**
+     * Получить speaker notes конкретного слайда
+     */
+    async getSpeakerNotes(blueprintId: string, slideId: string): Promise<any | null> {
+        await this.db.read();
+
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            return null;
+        }
+
+        const slide = blueprint.slides.find((s) => s.id === slideId);
+        return slide?.speakerNotes || null;
+    }
+
+    /**
+     * Получить все speaker notes из blueprint
+     */
+    async getSpeakerNotesByBlueprint(blueprintId: string): Promise<Array<{ slideId: string; speakerNotes: any }>> {
         await this.db.read();
 
         const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
@@ -515,8 +586,38 @@ class DatabaseService {
             return [];
         }
 
-        const slideIds = new Set(blueprint.slides.map((s) => s.id));
-        return this.db.data.speakerNotes.filter((n) => slideIds.has(n.slideId));
+        // Возвращаем только слайды, у которых есть speakerNotes
+        return blueprint.slides
+            .filter((s) => s.speakerNotes !== undefined)
+            .map((s) => ({
+                slideId: s.id,
+                speakerNotes: s.speakerNotes,
+            }));
+    }
+
+    /**
+     * Массово обновить speaker notes для нескольких слайдов
+     */
+    async updateMultipleSpeakerNotes(
+        blueprintId: string,
+        notesData: Array<{ slideId: string; speakerNotes: any }>
+    ): Promise<void> {
+        await this.db.read();
+
+        const blueprint = this.db.data.blueprints.find((b) => b.id === blueprintId);
+        if (!blueprint) {
+            throw new Error(`Blueprint ${blueprintId} not found`);
+        }
+
+        for (const { slideId, speakerNotes } of notesData) {
+            const slide = blueprint.slides.find((s) => s.id === slideId);
+            if (slide) {
+                slide.speakerNotes = speakerNotes;
+            }
+        }
+
+        blueprint.updatedAt = new Date().toISOString();
+        await this.db.write();
     }
 }
 
