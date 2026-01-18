@@ -37,6 +37,8 @@ blueprintsRouter.post('/generate', async (req, res) => {
             userPreferences
         );
 
+        console.log(blueprint)
+
         // Save to DB
         const blueprintRecord: Blueprint = {
             id: crypto.randomUUID(),
@@ -52,12 +54,12 @@ blueprintsRouter.post('/generate', async (req, res) => {
         };
 
         db.db.data.blueprints.push(blueprintRecord);
+        await db.db.write();
 
         await db.updateProject(projectId, {
             status: 'blueprint_ready',
             blueprintId: blueprintRecord.id,
         });
-        await db.db.write();
 
         res.json({
             success: true,

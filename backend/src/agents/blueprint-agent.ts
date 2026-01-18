@@ -69,6 +69,12 @@ const BLUEPRINT_SYSTEM_PROMPT = `# РОЛЬ
 - Альтернативы и trade-offs
 - 15-25 слайдов
 
+# ОБЯЗАТЕЛЬНЫЕ СЛАЙДЫ (ЕСЛИ РЕЛЕВАНТНО)
+- "Ключевые выводы анализа"
+- "Что может пойти не так"
+- "Какие решения требуется принять"
+- "Что будет, если ничего не делать"
+
 ## 5. DATA-DRIVEN ПОДХОД
 Для каждого слайда определите:
 - **dataSources**: Какие фрагменты документов использовать
@@ -90,7 +96,7 @@ const BLUEPRINT_SYSTEM_PROMPT = `# РОЛЬ
       "id": "slide-1",
       "order": 1,
       "title": "Название слайда НА РУССКОМ",
-      "type": "title | section_divider | bullet_points | two_column | table | chart | architecture | timeline | risks_matrix | summary",
+      "type": "title | section_divider | bullet_points | two_column | table | chart | architecture | timeline | risks_matrix | summary" | "decision_slide" | "tradeoff_analysis" | "assumptions" | "open_questions",
       "section": "Название секции",
       "description": "Краткое описание содержания слайда",
       "dataSources": ["список ID чанков из БД"],
@@ -194,6 +200,13 @@ const BLUEPRINT_SYSTEM_PROMPT = `# РОЛЬ
 - **metrics** → определяет количество слайдов с данными
 - **quality.issues** → добавляйте предупреждения
 - **recommendations.visualizations** → используйте предложенные типы визуализаций
+
+# ВАЖНОЕ ИЗМЕНЕНИЕ ПОДХОДА
+
+- Не бойтесь делать 20–30 слайдов, если данные это оправдывают
+- Лучше несколько слайдов с деталями, чем один поверхностный
+- Для сложных тем используйте "slide clusters":
+  2–3 слайда подряд по одной теме
 
 Если анализ показывает недостаток данных - создавайте слайд с placeholder и warning.`;
 
