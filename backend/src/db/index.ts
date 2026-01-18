@@ -256,6 +256,65 @@ class DatabaseService {
     }
 
     // =============================================================================
+    // VECTOR SEARCH
+    // =============================================================================
+
+    /**
+     * Search for similar chunks using cosine similarity
+     */
+    async searchSimilarChunks(
+        queryVector: number[],
+        topK = 5
+    ): Promise<Array<{ chunk: Chunk; similarity: number }>> {
+        await this.db.read();
+
+        const results: Array<{ chunk: Chunk; similarity: number }> = [];
+
+        // Get all embeddings
+        for (const embedding of this.db.data.embeddings) {
+            const chunk = this.db.data.chunks.find((c) => c.id === embedding.chunkId);
+            if (!chunk) continue;
+
+            // Calculate cosine similarity
+            const similarity = this.cosineSimilarity(queryVector, embedding.vector);
+            results.push({ chunk, similarity });
+        }
+
+        // Sort by similarity (descending) and take topK
+        return results
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, topK);
+    }
+
+    /**
+     * Calculate cosine similarity between two vectors
+     */
+    private cosineSimilarity(vecA: number[], vecB: number[]): number {
+        if (vecA.length !== vecB.length) {
+            throw new Error('Vectors must have the same length');
+        }
+
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+
+        for (let i = 0; i < vecA.length; i++) {
+            dotProduct += vecA[i] * vecB[i];
+            normA += vecA[i] * vecA[i];
+            normB += vecB[i] * vecB[i];
+        }
+
+        normA = Math.sqrt(normA);
+        normB = Math.sqrt(normB);
+
+        if (normA === 0 || normB === 0) {
+            return 0;
+        }
+
+        return dotProduct / (normA * normB);
+    }
+
+    // =============================================================================
     // EMBEDDINGS
     // =============================================================================
 

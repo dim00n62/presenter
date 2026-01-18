@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { StagePanel } from '../StagePanel';
-import { Button, Card, Chip, Input, Textarea, Select, SelectItem } from '@heroui/react';
+import { Button, Card, Chip } from '@heroui/react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -10,16 +10,15 @@ interface BlueprintStageProps {
   projectId: string;
   analysis: any;
   blueprint: any;
-  onBlueprintApproved: (blueprint: any) => void;
+  onBlueprintReady: (blueprint: any) => void;
   onPrev: () => void;
   onNext: () => void;
 }
 
 export function BlueprintStage({
   projectId,
-  analysis,
   blueprint,
-  onBlueprintApproved,
+  onBlueprintReady,
   onPrev,
   onNext,
 }: BlueprintStageProps) {
@@ -36,19 +35,11 @@ export function BlueprintStage({
     try {
       const result = await api.generateBlueprint(projectId);
       setLocalBlueprint(result.blueprint);
+      onBlueprintReady(result.blueprint);
     } catch (error: any) {
       toast.error(`Ошибка: ${error.message}`);
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const approveBlueprint = async () => {
-    try {
-      const updated = await api.approveBlueprint(projectId, localBlueprint.id);
-      onBlueprintApproved(updated);
-    } catch (error: any) {
-      toast.error(`Ошибка: ${error.message}`);
     }
   };
 
@@ -110,7 +101,7 @@ export function BlueprintStage({
   };
 
   const hasBlueprint = !!localBlueprint;
-  const isApproved = localBlueprint?.status === 'approved';
+  const isReady = localBlueprint?.status === 'blueprint_ready';
 
   return (
     <StagePanel
@@ -118,12 +109,12 @@ export function BlueprintStage({
       icon="📋"
       description="Определите последовательность и содержание слайдов"
       canGoPrev={true}
-      canGoNext={isApproved}
+      canGoNext={isReady}
       onPrev={onPrev}
       onNext={onNext}
       nextLabel="Генерировать контент"
       nextIcon="✍️"
-      status={isGenerating ? 'loading' : isApproved ? 'success' : 'idle'}
+      status={isGenerating ? 'loading' : isReady ? 'success' : 'idle'}
     >
       <div className="space-y-6">
         {/* Generate Blueprint */}
@@ -159,7 +150,6 @@ export function BlueprintStage({
         {/* Blueprint Editor */}
         {hasBlueprint && (
           <div className="space-y-4">
-            {/* Header with approve button */}
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">
@@ -169,24 +159,6 @@ export function BlueprintStage({
                   Редактируйте, добавляйте или удаляйте слайды
                 </p>
               </div>
-
-              {!isApproved && (
-                <Button
-                  color="success"
-                  size="lg"
-                  onPress={approveBlueprint}
-                  startContent={<span>✅</span>}
-                  className="shadow-md"
-                >
-                  Утвердить структуру
-                </Button>
-              )}
-
-              {isApproved && (
-                <Chip color="success" variant="flat" size="lg">
-                  ✅ Утверждено
-                </Chip>
-              )}
             </div>
 
             {/* Slides List */}

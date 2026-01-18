@@ -81,86 +81,6 @@ router.post('/projects/:id/analyze', async (req, res) => {
 });
 
 /**
- * Шаг 2: Создать структуру презентации (blueprint)
- * POST /api/generation/projects/:id/blueprint
- */
-router.post('/projects/:id/blueprint', async (req, res) => {
-    try {
-        const { id: projectId } = req.params;
-        const { userPreferences } = req.body;
-
-        console.log('📐 Creating blueprint for project', projectId);
-
-        await db.updateProject(projectId, {
-            status: 'analyzed',
-            progress: { blueprint: 10 }
-        });
-
-        // Get analysis
-        const project = await db.getProject(projectId);
-        if (!project.analysisId) {
-            throw new Error('Analysis not found. Run analysis first.');
-        }
-
-        const analysis = await db.getAnalysis(project.analysisId);
-
-        // Generate blueprint
-        await db.updateProject(projectId, { progress: { blueprint: 50 } });
-        const blueprintResult = await blueprintAgent.createBlueprint(
-            projectId,
-            analysis,
-            userPreferences
-        );
-
-        // Save blueprint
-        const blueprint = {
-            projectId,
-            analysisId: project.analysisId,
-            slides: blueprintResult.slides,
-            metadata: blueprintResult.metadata,
-            structure: blueprintResult.structure,
-            dataUsageStats: blueprintResult.dataUsageStats,
-            validationWarnings: blueprintResult.validationWarnings,
-            visualStyle: {
-                theme: 'corporate',
-                colorScheme: 'green-teal',
-                fontPrimary: 'Segoe UI',
-                fontSecondary: 'Segoe UI'
-            },
-            status: 'draft' as const
-        };
-
-        const savedBlueprint = await db.createBlueprint(blueprint);
-        await db.updateProject(projectId, {
-            status: 'blueprint_ready',
-            blueprintId: savedBlueprint.id,
-            progress: { blueprint: 100 }
-        });
-
-        console.log('✅ Blueprint created:', savedBlueprint.slides.length, 'slides');
-
-        res.json({
-            success: true,
-            blueprintId: savedBlueprint.id,
-            blueprint: savedBlueprint
-        });
-
-    } catch (error: any) {
-        console.error('❌ Blueprint creation failed:', error);
-
-        await db.updateProject(req.params.id, {
-            status: 'error',
-            errors: [error.message]
-        });
-
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
  * Шаг 3: Сгенерировать контент для слайдов
  * POST /api/generation/projects/:id/content
  */
@@ -307,68 +227,6 @@ router.post('/projects/:id/generate-pptx', async (req, res) => {
 // =============================================================================
 // ПОЛУЧЕНИЕ ДАННЫХ
 // =============================================================================
-
-/**
- * Получить анализ проекта
- * GET /api/generation/projects/:id/analysis
- */
-router.get('/projects/:id/analysis', async (req, res) => {
-    try {
-        const { id: projectId } = req.params;
-
-        const project = await db.getProject(projectId);
-        if (!project.analysisId) {
-            return res.status(404).json({
-                success: false,
-                error: 'Analysis not found'
-            });
-        }
-
-        const analysis = await db.getAnalysis(project.analysisId);
-
-        res.json({
-            success: true,
-            analysis
-        });
-
-    } catch (error: any) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Получить blueprint проекта
- * GET /api/generation/projects/:id/blueprint
- */
-router.get('/projects/:id/blueprint', async (req, res) => {
-    try {
-        const { id: projectId } = req.params;
-
-        const project = await db.getProject(projectId);
-        if (!project.blueprintId) {
-            return res.status(404).json({
-                success: false,
-                error: 'Blueprint not found'
-            });
-        }
-
-        const blueprint = await db.getBlueprint(project.blueprintId);
-
-        res.json({
-            success: true,
-            blueprint
-        });
-
-    } catch (error: any) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
 
 /**
  * Получить контент слайдов
@@ -581,6 +439,77 @@ router.post('/playground/test-presentation', async (req, res) => {
         console.error('❌ Test presentation failed:', error);
         res.status(500).json({
             success: false,
+            error: error.message
+        });
+    }
+});
+
+// =============================================================================
+// GET ENDPOINTS - Получение данных
+// =============================================================================
+
+/**
+ * GET /api/generation/project/:id/slides
+ * Получить все slide contents для проекта
+ */
+router.get('/project/:id/slides', async (req, res) => {
+    try {
+        const { id: projectId } = req.params;
+
+        // Get latest blueprint for project
+        const blueprints = await db.getBlueprintsByProject(projectId);
+        if (blueprints.length === 0) {
+            return res.status(404).json({
+                error: 'No blueprint found for project'
+            });
+        }
+
+        // Get latest blueprint (sorted by createdAt)
+        const latestBlueprint = blueprints.sort((a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+
+        // Get slide contents
+        const slideContents = await db.getSlideContentsByBlueprint(latestBlueprint.id);
+
+        res.json(slideContents);
+
+    } catch (error: any) {
+        console.error('Failed to get slide contents:', error);
+        res.status(500).json({
+            error: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/generation/project/:id
+ * Получить статус генерации для проекта
+ */
+router.get('/project/:id', async (req, res) => {
+    try {
+        const { id: projectId } = req.params;
+        const project = await db.getProject(projectId);
+
+        const blueprints = await db.getBlueprintsByProject(projectId);
+        const latestBlueprint = blueprints.length > 0
+            ? blueprints.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+            : null;
+
+        const slideContents = latestBlueprint
+            ? await db.getSlideContentsByBlueprint(latestBlueprint.id)
+            : [];
+
+        res.json({
+            project,
+            blueprint: latestBlueprint,
+            slideContents,
+            hasBlueprint: !!latestBlueprint,
+            hasContent: slideContents.length > 0
+        });
+
+    } catch (error: any) {
+        res.status(500).json({
             error: error.message
         });
     }

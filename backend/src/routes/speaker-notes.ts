@@ -4,8 +4,6 @@ import { Router } from 'express';
 import { speakerNotesAgent } from '../agents/speaker-notes-agent.js';
 import { db } from '../db/index.js';
 import { Document, Paragraph, TextRun, HeadingLevel, Packer } from 'docx';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
 
 export const speakerNotesRouter = Router();
 
@@ -18,7 +16,7 @@ speakerNotesRouter.post('/generate', async (req, res) => {
         await db.db.read();
 
         const blueprint = db.db.data.blueprints
-            .filter(b => b.projectId === projectId && b.status === 'approved')
+            .filter(b => b.projectId === projectId)
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
         if (!blueprint) {
@@ -73,15 +71,11 @@ speakerNotesRouter.get('/project/:projectId', async (req, res) => {
             .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
         if (!speakerNotesRecord) {
-            return res.status(404).json({ error: 'Speaker notes не найдены' });
+            // Return empty array instead of 404 - notes just haven't been generated yet
+            return res.json([]);
         }
 
-        res.json({
-            speakerNotes: speakerNotesRecord.notes,
-            totalDuration: speakerNotesRecord.notes.reduce((sum: number, n: any) =>
-                sum + (n.speakerNotes?.timing?.estimated || 60), 0
-            ),
-        });
+        res.json(speakerNotesRecord.notes || []);
 
     } catch (error: any) {
         res.status(500).json({ error: error.message });

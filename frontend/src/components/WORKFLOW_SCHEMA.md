@@ -140,10 +140,8 @@
   │ • Edit slides:                      │
   │   - Add new                         │
   │   - Delete                          │
-  │   - Reorder (↑↓)                   │
-  │   - Edit details                    │
-  │ • Approve blueprint                 │
-  │ • ✅ When approved → Next           │
+  │   - Reorder (↑↓)                    │
+  │   - Edit details   → Next           │
   └─────────────────────────────────────┘
 
 ✍️ Content Stage:

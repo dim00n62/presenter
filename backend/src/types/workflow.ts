@@ -13,8 +13,7 @@ export const WorkflowStateSchema = z.object({
         'analyzing',
         'analysis_complete',
         'blueprinting',
-        'blueprint_pending_approval',
-        'blueprint_approved',
+        'blueprint_ready',
         'generating_content',
         'complete',
         'failed'

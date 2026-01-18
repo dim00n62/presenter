@@ -174,13 +174,6 @@ async generateBlueprint(projectId: string) {
   return response.json();
 }
 
-async approveBlueprint(projectId: string, blueprintId: string) {
-  const response = await fetch(`/api/blueprints/${blueprintId}/approve`, {
-    method: 'POST',
-  });
-  return response.json();
-}
-
 // Content
 async generateAllSlides(projectId: string, blueprintId: string) {
   const response = await fetch(`/api/generation/${projectId}/slides`, {
@@ -234,7 +227,6 @@ async exportPPTX(projectId: string, options: any) {
 - `GET /api/analysis/:projectId/progress` - SSE прогресса
 - `GET /api/analysis/:projectId` - получить результаты
 - `POST /api/blueprints/:projectId/generate` - создать структуру
-- `POST /api/blueprints/:blueprintId/approve` - утвердить
 - `POST /api/generation/:projectId/slides` - генерация контента
 - `GET /api/generation/:projectId/progress` - SSE прогресса
 - `POST /api/speaker-notes/:projectId/generate` - генерация заметок

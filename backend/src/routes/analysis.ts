@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import { analysisAgent } from '../agents/analysis-agent.js';
 import { db } from '../db/index.js';
+import { analyzeService } from '../services/analyze.js';
 
 export const analysisRouter = Router();
 
@@ -46,7 +47,7 @@ analysisRouter.get('/progress/:projectId', async (req, res) => {
     res.write(`data: ${JSON.stringify({ status: 'connected', message: 'Подключено' })}\n\n`);
 
     // Register progress callback
-    const unsubscribe = autoAnalysisService.onProgress(projectId, (progress) => {
+    const unsubscribe = analyzeService.onProgress(projectId, (progress) => {
         res.write(`data: ${JSON.stringify(progress)}\n\n`);
 
         // Close connection when complete or error
@@ -69,16 +70,12 @@ analysisRouter.get('/project/:projectId', async (req, res) => {
     try {
         await db.db.read();
 
-        const analysis = db.db.data.analyses
+        const analyses = db.db.data.analyses
             ?.filter((a: any) => a.projectId === req.params.projectId)
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-        if (!analysis) {
-            return res.status(404).json({ error: 'Анализ не найден' });
-        }
-
-        // Return analysis object directly (not .result)
-        res.json(analysis);
+        // Return array (empty if no analysis yet)
+        res.json(analyses || []);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

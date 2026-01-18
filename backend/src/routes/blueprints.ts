@@ -7,7 +7,7 @@ import { Blueprint } from '../types/database.js';
 export const blueprintsRouter = Router();
 
 // Create blueprint from analysis
-blueprintsRouter.post('/create', async (req, res) => {
+blueprintsRouter.post('/generate', async (req, res) => {
     try {
         const { projectId, userPreferences } = req.body;
 
@@ -52,6 +52,11 @@ blueprintsRouter.post('/create', async (req, res) => {
         };
 
         db.db.data.blueprints.push(blueprintRecord);
+
+        await db.updateProject(projectId, {
+            status: 'blueprint_ready',
+            blueprintId: blueprintRecord.id,
+        });
         await db.db.write();
 
         res.json({
@@ -124,28 +129,6 @@ blueprintsRouter.put('/:id', async (req, res) => {
         res.json({ success: true, blueprint });
     } catch (error) {
         console.error('Blueprint update error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Approve blueprint
-blueprintsRouter.post('/:id/approve', async (req, res) => {
-    try {
-        await db.db.read();
-        const blueprint = db.db.data.blueprints.find(b => b.id === req.params.id);
-
-        if (!blueprint) {
-            return res.status(404).json({ error: 'Blueprint не найден' });
-        }
-
-        blueprint.status = 'approved';
-        blueprint.approvedAt = new Date().toISOString();
-        await db.db.write();
-
-        console.log(`✅ Blueprint ${blueprint.id} одобрен`);
-
-        res.json({ success: true, blueprint });
-    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });

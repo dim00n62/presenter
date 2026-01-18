@@ -37,7 +37,6 @@ getAnalyses(projectId)
 
 // Структура
 generateBlueprint(projectId)
-approveBlueprint(projectId, blueprintId)
 
 // Контент
 generateAllSlides(projectId, blueprintId)
@@ -57,7 +56,6 @@ exportPPTX(projectId, options)
 - `POST /api/analysis/:projectId/start`
 - `GET /api/analysis/:projectId/progress` (SSE)
 - `POST /api/blueprints/:projectId/generate`
-- `POST /api/blueprints/:blueprintId/approve`
 - `POST /api/generation/:projectId/slides`
 - `GET /api/generation/:projectId/progress` (SSE)
 

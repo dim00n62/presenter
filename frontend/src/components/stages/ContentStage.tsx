@@ -1,6 +1,6 @@
 // frontend/src/components/stages/ContentStage.tsx
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StagePanel } from '../StagePanel';
 import { Button, Card, Chip, Progress } from '@heroui/react';
 import { api } from '../../lib/api';
@@ -26,6 +26,10 @@ export function ContentStage({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentSlide, setCurrentSlide] = useState('');
+
+  useEffect(() => {
+    loadContent();
+  }, []);
 
   const generateContent = async () => {
     setIsGenerating(true);

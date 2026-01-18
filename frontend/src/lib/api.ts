@@ -128,18 +128,30 @@ export const api = {
         return response.json();
     },
 
-    async approveBlueprint(blueprintId: string) {
-        const response = await fetch(`${API_BASE}/api/blueprints/${blueprintId}/approve`, {
-            method: 'POST'
-        });
-        if (!response.ok) throw new Error('Failed to approve blueprint');
-        return response.json();
-    },
-
     // ==================== GENERATION ====================
     async getGeneration(projectId: string) {
         const response = await fetch(`${API_BASE}/api/generation/project/${projectId}`);
         if (!response.ok) throw new Error('Generation not found');
+        return response.json();
+    },
+
+    async getSlideContents(projectId: string) {
+        const response = await fetch(`${API_BASE}/api/generation/project/${projectId}/slides`);
+        if (!response.ok) {
+            // Return empty array if not found (not an error - just not generated yet)
+            if (response.status === 404) return [];
+            throw new Error('Failed to load slide contents');
+        }
+        return response.json();
+    },
+
+    async generateAllSlides(projectId: string, blueprintId: string) {
+        const response = await fetch(`${API_BASE}/api/generation/project/${projectId}/generate-slides`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blueprintId })
+        });
+        if (!response.ok) throw new Error('Slide generation failed');
         return response.json();
     },
 
@@ -172,7 +184,11 @@ export const api = {
 
     async getSpeakerNotes(projectId: string) {
         const response = await fetch(`${API_BASE}/api/speaker-notes/project/${projectId}`);
-        if (!response.ok) throw new Error('Speaker notes not found');
+        if (!response.ok) {
+            // Return empty array if not found (not an error - just not generated yet)
+            if (response.status === 404) return [];
+            throw new Error('Speaker notes not found');
+        }
         return response.json();
     },
 
@@ -201,7 +217,7 @@ export const api = {
 
     // Шаг 2: Blueprint
     async createBlueprint(projectId: string, userPreferences?: any) {
-        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/blueprint`, {
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/blueprint`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userPreferences }),
@@ -211,7 +227,7 @@ export const api = {
 
     // Шаг 3: Контент
     async generateContent(projectId: string) {
-        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/content`, {
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/content`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
@@ -220,7 +236,7 @@ export const api = {
 
     // Шаг 4: PPTX
     async generatePPTX(projectId: string) {
-        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/generate-pptx`, {
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/generate-pptx`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
@@ -229,12 +245,12 @@ export const api = {
 
     // Получение данных
     async getBlueprint(projectId: string) {
-        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/blueprint`);
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/blueprint`);
         return response.json();
     },
 
     async getContent(projectId: string) {
-        const response = await fetch(`${API_BASE}/generation/projects/${projectId}/content`);
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/content`);
         return response.json();
     },
 

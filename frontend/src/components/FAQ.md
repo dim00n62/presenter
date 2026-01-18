@@ -317,20 +317,6 @@ import { DocumentUpload } from '../DocumentUpload';
 
 ## Безопасность
 
-### Валидация на клиенте
-
-```typescript
-const canProceed = () => {
-  if (currentStage === 'documents') {
-    return documents.every(d => d.status === 'parsed');
-  }
-  if (currentStage === 'blueprint') {
-    return blueprint?.status === 'approved';
-  }
-  // ...
-};
-```
-
 ### Проверка прав доступа
 
 ```typescript

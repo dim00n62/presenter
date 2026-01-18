@@ -23,21 +23,30 @@ export function ProjectPageV2() {
   const [currentStage, setCurrentStage] = useState<WorkflowStage>('documents');
   const [completedStages, setCompletedStages] = useState<WorkflowStage[]>(['project_setup']);
 
-  // Data for each stage
+  // Data for each stage - lazy loaded per stage
   const [documents, setDocuments] = useState<any[]>([]);
   const [analysis, setAnalysis] = useState<any>(null);
   const [blueprint, setBlueprint] = useState<any>(null);
   const [slideContents, setSlideContents] = useState<any[]>([]);
   const [speakerNotes, setSpeakerNotes] = useState<any[]>([]);
 
+  // Track what data has been loaded
+  const [loadedStages, setLoadedStages] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (projectId) {
       loadProject();
-      loadDocuments();
-      loadAnalysis();
-      loadBlueprint();
+      // Only load documents on initial load (first stage)
+      loadDataForStage('documents');
     }
   }, [projectId]);
+
+  // Load data when stage changes
+  useEffect(() => {
+    if (currentStage && projectId) {
+      loadDataForStage(currentStage);
+    }
+  }, [currentStage]);
 
   useEffect(() => {
     console.log(documents.length > 0, documents.some(d => d.status === 'parsing'))
@@ -56,6 +65,57 @@ export function ProjectPageV2() {
     } catch (error: any) {
       console.error('Failed to load project:', error);
       navigate('/');
+    }
+  };
+
+  /**
+   * Load data for specific stage (lazy loading)
+   */
+  const loadDataForStage = async (stage: WorkflowStage) => {
+    // Skip if already loaded
+    if (loadedStages.has(stage)) {
+      return;
+    }
+
+    console.log(`📥 Loading data for stage: ${stage}`);
+
+    try {
+      switch (stage) {
+        case 'documents':
+          await loadDocuments();
+          break;
+
+        case 'analysis':
+          await loadDocuments(); // Need documents for analysis
+          await loadAnalysis();
+          break;
+
+        case 'blueprint':
+          await loadAnalysis(); // Need analysis for blueprint
+          await loadBlueprint();
+          break;
+
+        case 'content':
+          await loadBlueprint(); // Need blueprint for content
+          await loadSlideContents();
+          break;
+
+        case 'speaker_notes':
+          await loadSlideContents(); // Need slide contents for notes
+          await loadSpeakerNotes();
+          break;
+
+        case 'export':
+          await loadBlueprint();
+          await loadSlideContents();
+          await loadSpeakerNotes();
+          break;
+      }
+
+      // Mark as loaded
+      setLoadedStages(prev => new Set([...prev, stage]));
+    } catch (error) {
+      console.error(`Failed to load data for stage ${stage}:`, error);
     }
   };
 
@@ -92,12 +152,48 @@ export function ProjectPageV2() {
         setBlueprint(bp.blueprint);
         markStageCompleted('blueprint');
 
-        if (bp.blueprint.status === 'approved') {
+        if (bp.blueprint.status === 'blueprint_ready') {
           markStageCompleted('blueprint');
         }
       }
     } catch (error) {
       console.error('Failed to load blueprint:', error);
+    }
+  };
+
+  const loadSlideContents = async () => {
+    try {
+      if (!blueprint?.id) {
+        console.log('No blueprint available for loading slide contents');
+        return;
+      }
+
+      const contents = await api.getSlideContents(projectId!);
+      setSlideContents(contents || []);
+
+      if (contents && contents.length > 0) {
+        markStageCompleted('content');
+      }
+    } catch (error) {
+      console.error('Failed to load slide contents:', error);
+    }
+  };
+
+  const loadSpeakerNotes = async () => {
+    try {
+      if (!blueprint?.id) {
+        console.log('No blueprint available for loading speaker notes');
+        return;
+      }
+
+      const notes = await api.getSpeakerNotes(projectId!);
+      setSpeakerNotes(notes || []);
+
+      if (notes && notes.length > 0) {
+        markStageCompleted('speaker_notes');
+      }
+    } catch (error) {
+      console.error('Failed to load speaker notes:', error);
     }
   };
 
@@ -109,7 +205,7 @@ export function ProjectPageV2() {
       setCurrentStage('analysis');
     } else if (!blueprint) {
       setCurrentStage('blueprint');
-    } else if (blueprint.status !== 'approved') {
+    } else if (blueprint.status !== 'blueprint_ready') {
       setCurrentStage('blueprint');
     } else if (!slideContents.length) {
       setCurrentStage('content');
@@ -204,7 +300,7 @@ export function ProjectPageV2() {
                   🔍 Проанализировано
                 </Chip>
               )}
-              {blueprint?.status === 'approved' && (
+              {blueprint?.status === 'blueprint_ready' && (
                 <Chip color="success" variant="flat">
                   ✅ Структура утверждена
                 </Chip>
@@ -254,7 +350,7 @@ export function ProjectPageV2() {
               projectId={projectId!}
               analysis={analysis}
               blueprint={blueprint}
-              onBlueprintApproved={(bp) => {
+              onBlueprintReady={(bp) => {
                 setBlueprint(bp);
                 markStageCompleted('blueprint');
                 goNext();
@@ -272,7 +368,6 @@ export function ProjectPageV2() {
               onContentGenerated={(contents) => {
                 setSlideContents(contents);
                 markStageCompleted('content');
-                goNext();
               }}
               onPrev={goPrev}
               onNext={goNext}
