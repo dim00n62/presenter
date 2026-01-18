@@ -184,7 +184,6 @@ router.post('/projects/:id/generate-pptx', async (req, res) => {
 
         const pptxBuffer = await generatePresentation(
             blueprint,
-            slidesWithContent,
             {
                 title: project.name,
                 author: 'Presentation Agent',
@@ -193,7 +192,7 @@ router.post('/projects/:id/generate-pptx', async (req, res) => {
             }
         );
 
-        // Save file
+        // Save file (опционально, для истории)
         const filename = `presentation_${projectId}_${Date.now()}.pptx`;
         const outputDir = path.join(process.cwd(), 'outputs');
         const outputPath = path.join(outputDir, filename);
@@ -209,11 +208,11 @@ router.post('/projects/:id/generate-pptx', async (req, res) => {
 
         console.log('✅ PPTX generated:', filename);
 
-        res.json({
-            success: true,
-            filename: filename,
-            downloadUrl: `/api/presentations/download/${filename}`
-        });
+        // 🔧 ИСПРАВЛЕНИЕ: Возвращаем файл напрямую, а не JSON
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', pptxBuffer.length);
+        res.send(pptxBuffer);
 
     } catch (error: any) {
         console.error('❌ PPTX generation failed:', error);
@@ -282,141 +281,124 @@ router.post('/playground/test-presentation', async (req, res) => {
         // Mock blueprint с примерами всех типов слайдов
         const mockBlueprint = {
             slides: [
-                { id: '1', type: 'title', order: 0 },
-                { id: '2', type: 'bullet_points', order: 1 },
-                { id: '3', type: 'two_column', order: 2 },
-                { id: '4', type: 'table', order: 3 },
-                ...(includeCharts ? [{ id: '5', type: 'chart', order: 4 }] : []),
-                { id: '6', type: 'section_divider', order: includeCharts ? 5 : 4 },
-                { id: '7', type: 'summary', order: includeCharts ? 6 : 5 },
-            ]
-        };
-
-        // Mock content с красивыми примерами
-        const mockContents = [
-            {
-                slideId: '1',
-                content: {
-                    title: 'Цифровая трансформация банковских услуг',
-                    subtitle: 'Стратегия развития на 2025-2027',
-                    footer: ''
-                }
-            },
-            {
-                slideId: '2',
-                content: {
-                    title: 'Ключевые направления развития',
-                    body: {
-                        bullets: [
-                            'Персонализация клиентского опыта на основе AI/ML',
-                            'Open Banking и экосистемный подход',
-                            {
-                                main: 'Модернизация технологической платформы:',
-                                sub: [
-                                    'Миграция на облачную инфраструктуру',
-                                    'Внедрение микросервисной архитектуры',
-                                    'Автоматизация CI/CD процессов'
-                                ]
-                            },
-                            'Развитие супер-приложения для B2C/B2B',
-                            'Интеграция с Госуслугами и ЦПФР'
-                        ]
+                {
+                    id: '1', type: 'title', order: 0, content: {
+                        title: 'Цифровая трансформация банковских услуг',
+                        subtitle: 'Стратегия развития на 2025-2027',
+                        footer: ''
                     }
-                }
-            },
-            {
-                slideId: '3',
-                content: {
-                    title: 'Текущее состояние vs Целевая модель',
-                    body: {
-                        leftColumn: {
-                            title: 'Сейчас (As-Is)',
-                            content: [
-                                'Монолитная архитектура',
-                                'On-premise инфраструктура',
-                                'Водопадная разработка',
-                                'Ручное тестирование',
-                                'Time-to-market: 6-9 месяцев'
-                            ]
-                        },
-                        rightColumn: {
-                            title: 'Цель (To-Be)',
-                            content: [
-                                'Микросервисная архитектура',
-                                'Гибридное облако (Public + Private)',
-                                'Agile/DevOps культура',
-                                'Автоматизация 80%+ тестов',
-                                'Time-to-market: 2-4 недели'
+                },
+                {
+                    id: '2', type: 'bullet_points', order: 1, content: {
+                        title: 'Ключевые направления развития',
+                        body: {
+                            bullets: [
+                                'Персонализация клиентского опыта на основе AI/ML',
+                                'Open Banking и экосистемный подход',
+                                {
+                                    main: 'Модернизация технологической платформы:',
+                                    sub: [
+                                        'Миграция на облачную инфраструктуру',
+                                        'Внедрение микросервисной архитектуры',
+                                        'Автоматизация CI/CD процессов'
+                                    ]
+                                },
+                                'Развитие супер-приложения для B2C/B2B',
+                                'Интеграция с Госуслугами и ЦПФР'
                             ]
                         }
                     }
-                }
-            },
-            {
-                slideId: '4',
-                content: {
-                    title: 'Roadmap реализации',
-                    body: {
-                        headers: ['Этап', 'Сроки', 'Ключевые результаты', 'Бюджет'],
-                        rows: [
-                            ['Подготовка', 'Q1 2025', 'Пилотные проекты, обучение команд', '50 млн ₽'],
-                            ['Фаза 1', 'Q2-Q3 2025', 'Миграция 30% сервисов', '200 млн ₽'],
-                            ['Фаза 2', 'Q4 2025 - Q1 2026', 'Миграция 60% сервисов', '300 млн ₽'],
-                            ['Завершение', 'Q2-Q3 2026', 'Полная миграция, оптимизация', '150 млн ₽']
-                        ]
-                    }
-                }
-            },
-        ];
-
-        if (includeCharts) {
-            mockContents.push({
-                slideId: '5',
-                content: {
-                    title: 'Динамика ключевых метрик',
-                    body: {
-                        chartType: 'line',
-                        data: {
-                            labels: ['Q1 2024', 'Q2 2024', 'Q3 2024', 'Q4 2024', 'Q1 2025 (план)'],
-                            values: {
-                                'MAU, млн': [12.5, 13.2, 14.1, 15.8, 17.5],
-                                'NPS': [45, 48, 52, 58, 65],
-                                'Доля digital, %': [68, 72, 76, 82, 88]
+                },
+                {
+                    id: '3', type: 'two_column', order: 2, content: {
+                        title: 'Текущее состояние vs Целевая модель',
+                        body: {
+                            leftColumn: {
+                                title: 'Сейчас (As-Is)',
+                                content: [
+                                    'Монолитная архитектура',
+                                    'On-premise инфраструктура',
+                                    'Водопадная разработка',
+                                    'Ручное тестирование',
+                                    'Time-to-market: 6-9 месяцев'
+                                ]
+                            },
+                            rightColumn: {
+                                title: 'Цель (To-Be)',
+                                content: [
+                                    'Микросервисная архитектура',
+                                    'Гибридное облако (Public + Private)',
+                                    'Agile/DevOps культура',
+                                    'Автоматизация 80%+ тестов',
+                                    'Time-to-market: 2-4 недели'
+                                ]
                             }
-                        },
-                        insight: 'Рост MAU на 40%, NPS на 44%, digital-проникновение достигло 82%'
+                        }
                     }
-                }
-            });
-        }
-
-        mockContents.push(
-            {
-                slideId: '6',
-                content: {
-                    title: 'Технологический стек'
-                }
-            },
-            {
-                slideId: '7',
-                content: {
-                    title: 'Ключевые выводы',
-                    body: {
-                        bullets: [
-                            'Digital-трансформация ускорит time-to-market в 3-4 раза',
-                            'Ожидаемый рост клиентской базы +40% к 2027 году',
-                            'ROI проекта: 250% за 3 года',
-                            'Ключевые риски: нехватка компетенций, legacy интеграции'
-                        ]
+                },
+                {
+                    id: '4', type: 'table', order: 3, content: {
+                        title: 'Roadmap реализации',
+                        body: {
+                            headers: ['Этап', 'Сроки', 'Ключевые результаты', 'Бюджет'],
+                            rows: [
+                                ['Подготовка', 'Q1 2025', 'Пилотные проекты, обучение команд', '50 млн ₽'],
+                                ['Фаза 1', 'Q2-Q3 2025', 'Миграция 30% сервисов', '200 млн ₽'],
+                                ['Фаза 2', 'Q4 2025 - Q1 2026', 'Миграция 60% сервисов', '300 млн ₽'],
+                                ['Завершение', 'Q2-Q3 2026', 'Полная миграция, оптимизация', '150 млн ₽']
+                            ]
+                        }
                     }
-                }
-            }
-        );
+                },
+                ...(includeCharts ? [{
+                    id: '5', type: 'chart', order: 4, content: {
+                        title: 'Динамика ключевых метрик',
+                        body: {
+                            chartType: 'line',
+                            data: {
+                                labels: ['Q1 2024', 'Q2 2024', 'Q3 2024', 'Q4 2024', 'Q1 2025 (план)'],
+                                values: {
+                                    'MAU, млн': [12.5, 13.2, 14.1, 15.8, 17.5],
+                                    'NPS': [45, 48, 52, 58, 65],
+                                    'Доля digital, %': [68, 72, 76, 82, 88]
+                                }
+                            },
+                            insight: 'Рост MAU на 40%, NPS на 44%, digital-проникновение достигло 82%'
+                        }
+                    }
+                }] : []),
+                {
+                    id: '6', type: 'section_divider', order: includeCharts ? 5 : 4, content: {
+                        title: 'Ключевые выводы',
+                        body: {
+                            bullets: [
+                                'Digital-трансформация ускорит time-to-market в 3-4 раза',
+                                'Ожидаемый рост клиентской базы +40% к 2027 году',
+                                'ROI проекта: 250% за 3 года',
+                                'Ключевые риски: нехватка компетенций, legacy интеграции'
+                            ]
+                        }
+                    }
+                },
+                {
+                    id: '7', type: 'summary', order: includeCharts ? 6 : 5, content: {
+                        title: 'Ключевые выводы',
+                        body: {
+                            bullets: [
+                                'Digital-трансформация ускорит time-to-market в 3-4 раза',
+                                'Ожидаемый рост клиентской базы +40% к 2027 году',
+                                'ROI проекта: 250% за 3 года',
+                                'Ключевые риски: нехватка компетенций, legacy интеграции'
+                            ]
+                        }
+                    }
+                },
+            ]
+        };
 
         // Generate PPTX
         const pptxBuffer = await generatePresentation(
             mockBlueprint,
-            mockContents,
             {
                 title: 'Design Playground - Test Presentation',
                 author: 'Presentation Agent',
@@ -425,7 +407,7 @@ router.post('/playground/test-presentation', async (req, res) => {
             }
         );
 
-        // Save file
+        // Save file (опционально, для истории)
         const filename = `test_presentation_${Date.now()}.pptx`;
         const outputDir = path.join(process.cwd(), 'outputs');
         const outputPath = path.join(outputDir, filename);
@@ -435,11 +417,11 @@ router.post('/playground/test-presentation', async (req, res) => {
 
         console.log('✅ Test presentation created:', filename);
 
-        res.json({
-            success: true,
-            filename: filename,
-            downloadUrl: `/api/presentations/download/${filename}`
-        });
+        // 🔧 ИСПРАВЛЕНИЕ: Возвращаем файл напрямую, а не JSON
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', pptxBuffer.length);
+        res.send(pptxBuffer);
 
     } catch (error: any) {
         console.error('❌ Test presentation failed:', error);

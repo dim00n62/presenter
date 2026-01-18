@@ -36,7 +36,7 @@ export const api = {
     async updateProject(id: string, data: {
         name?: string;
         status?: string;
-        presentationGoal: string;
+        presentationGoal?: string;
         targetAudience?: string;
         presentationContext?: string;
         description?: string;
@@ -70,12 +70,6 @@ export const api = {
         return response.json();
     },
 
-    async getDocument(documentId: string) {
-        const response = await fetch(`${API_BASE}/api/documents/${documentId}`);
-        if (!response.ok) throw new Error('Document not found');
-        return response.json();
-    },
-
     async getDocuments(projectId: string) {
         const response = await fetch(`${API_BASE}/api/documents/project/${projectId}`);
         if (!response.ok) throw new Error('Failed to load documents');
@@ -96,7 +90,10 @@ export const api = {
 
     async getAnalysis(projectId: string) {
         const response = await fetch(`${API_BASE}/api/analysis/project/${projectId}`);
-        if (!response.ok) throw new Error('Analysis not found');
+        if (!response.ok) {
+            if (response.status === 404) return [];
+            throw new Error('Analysis not found');
+        }
         return response.json();
     },
 
@@ -114,7 +111,10 @@ export const api = {
 
     async getLatestBlueprint(projectId: string) {
         const response = await fetch(`${API_BASE}/api/blueprints/project/${projectId}`);
-        if (!response.ok) throw new Error('Blueprint not found');
+        if (!response.ok) {
+            if (response.status === 404) return null;
+            throw new Error('Blueprint not found');
+        }
         return response.json();
     },
 
@@ -128,35 +128,32 @@ export const api = {
         return response.json();
     },
 
-    // ==================== GENERATION ====================
-    async getGeneration(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/project/${projectId}`);
-        if (!response.ok) throw new Error('Generation not found');
+    // ==================== CONTENT & EXPORT ====================
+
+    async generateContent(projectId: string) {
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/content`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        if (!response.ok) throw new Error('Content generation failed');
         return response.json();
     },
 
     async getSlideContents(projectId: string) {
         const response = await fetch(`${API_BASE}/api/generation/project/${projectId}/slides`);
         if (!response.ok) {
-            // Return empty array if not found (not an error - just not generated yet)
             if (response.status === 404) return [];
             throw new Error('Failed to load slide contents');
         }
         return response.json();
     },
 
-    async generateAllSlides(projectId: string, blueprintId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/project/${projectId}/generate-slides`, {
+    async exportPPTX(projectId: string) {
+        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/generate-pptx`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ blueprintId })
         });
-        if (!response.ok) throw new Error('Slide generation failed');
-        return response.json();
-    },
 
-    async exportPPTX(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/generate-pptx`);
         if (!response.ok) throw new Error('Export failed');
 
         const blob = await response.blob();
@@ -185,7 +182,6 @@ export const api = {
     async getSpeakerNotes(projectId: string) {
         const response = await fetch(`${API_BASE}/api/speaker-notes/project/${projectId}`);
         if (!response.ok) {
-            // Return empty array if not found (not an error - just not generated yet)
             if (response.status === 404) return [];
             throw new Error('Speaker notes not found');
         }
@@ -207,60 +203,44 @@ export const api = {
         document.body.removeChild(a);
     },
 
-    // ==================== HEALTH ====================
+    // ==================== PLAYGROUND ====================
 
-    async healthCheck() {
-        const response = await fetch(`${API_BASE}/health`);
-        if (!response.ok) throw new Error('Health check failed');
-        return response.json();
-    },
-
-    // Шаг 2: Blueprint
-    async createBlueprint(projectId: string, userPreferences?: any) {
-        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/blueprint`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userPreferences }),
-        });
-        return response.json();
-    },
-
-    // Шаг 3: Контент
-    async generateContent(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/content`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        return response.json();
-    },
-
-    // Шаг 4: PPTX
-    async generatePPTX(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/generate-pptx`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
-        return response.json();
-    },
-
-    // Получение данных
-    async getBlueprint(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/blueprint`);
-        return response.json();
-    },
-
-    async getContent(projectId: string) {
-        const response = await fetch(`${API_BASE}/api/generation/projects/${projectId}/content`);
-        return response.json();
-    },
-
-    // Playground
     async createTestPresentation(options: { theme?: string; includeCharts?: boolean }) {
         const response = await fetch(`${API_BASE}/api/generation/playground/test-presentation`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(options),
         });
+
+        if (!response.ok) throw new Error('Test presentation generation failed');
+
+        // 🔧 Скачиваем файл напрямую
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+
+        // Извлекаем имя файла из заголовка Content-Disposition
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const filename = contentDisposition
+            ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
+            : `test_presentation_${Date.now()}.pptx`;
+
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        // Возвращаем success для UI
+        return { success: true, filename };
+    },
+
+    // ==================== HEALTH ====================
+
+    async healthCheck() {
+        const response = await fetch(`${API_BASE}/health`);
+        if (!response.ok) throw new Error('Health check failed');
         return response.json();
     },
 };

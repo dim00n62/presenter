@@ -7,14 +7,13 @@ import { WorkflowStepper } from '../components/WorkflowStepper';
 import type { WorkflowStage } from '../components/WorkflowStepper';
 import { api } from '../lib/api';
 
-// Stage components (будут созданы отдельно)
+// Stage components
 import { ProjectSetupStage } from '../components/stages/ProjectSetupStage';
 import { DocumentsStage } from '../components/stages/DocumentsStage';
 import { AnalysisStage } from '../components/stages/AnalysisStage';
 import { BlueprintStage } from '../components/stages/BlueprintStage';
-import { ContentStage } from '../components/stages/ContentStage';
+import { ContentAndExportStage } from '../components/stages/ContentAndExportStage';
 import { SpeakerNotesStage } from '../components/stages/SpeakerNotesStage';
-import { ExportStage } from '../components/stages/ExportStage';
 
 export function ProjectPageV2() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -22,9 +21,8 @@ export function ProjectPageV2() {
 
   const [project, setProject] = useState<any>(null);
   const [currentStage, setCurrentStage] = useState<WorkflowStage>('project_setup');
-  const [completedStages, setCompletedStages] = useState<WorkflowStage[]>([]);
 
-  // Data for each stage - lazy loaded per stage
+  // Data for each stage - lazy loaded
   const [documents, setDocuments] = useState<any[]>([]);
   const [analysis, setAnalysis] = useState<any>(null);
   const [blueprint, setBlueprint] = useState<any>(null);
@@ -37,8 +35,7 @@ export function ProjectPageV2() {
   useEffect(() => {
     if (projectId) {
       loadProject();
-      // Only load documents on initial load (first stage)
-      loadDataForStage('documents');
+      loadDataForStage('project_setup');
     }
   }, [projectId]);
 
@@ -59,9 +56,6 @@ export function ProjectPageV2() {
     try {
       const p = await api.getProject(projectId!);
       setProject(p);
-
-      // Determine current stage based on project status
-      determineCurrentStage();
     } catch (error: any) {
       console.error('Failed to load project:', error);
       navigate('/');
@@ -81,32 +75,30 @@ export function ProjectPageV2() {
 
     try {
       switch (stage) {
+        case 'project_setup':
+          // No data needed
+          break;
+
         case 'documents':
           await loadDocuments();
           break;
 
         case 'analysis':
-          await loadDocuments(); // Need documents for analysis
+          await loadDocuments();
           await loadAnalysis();
           break;
 
         case 'blueprint':
-          await loadAnalysis(); // Need analysis for blueprint
+          await loadAnalysis();
           await loadBlueprint();
           break;
 
-        case 'content':
-          await loadBlueprint(); // Need blueprint for content
+        case 'content_export':
+          await loadBlueprint();
           await loadSlideContents();
           break;
 
         case 'speaker_notes':
-          await loadSlideContents(); // Need slide contents for notes
-          await loadSpeakerNotes();
-          break;
-
-        case 'export':
-          await loadBlueprint();
           await loadSlideContents();
           await loadSpeakerNotes();
           break;
@@ -123,11 +115,6 @@ export function ProjectPageV2() {
     try {
       const docs = await api.getDocuments(projectId!);
       setDocuments(docs);
-
-      // Mark documents stage as completed if we have parsed docs
-      if (docs.length > 0 && docs.every((d: any) => d.status === 'parsed')) {
-        markStageCompleted('documents');
-      }
     } catch (error) {
       console.error('Failed to load documents:', error);
     }
@@ -138,7 +125,6 @@ export function ProjectPageV2() {
       const analyses = await api.getAnalysis(projectId!);
       if (analyses && analyses.length > 0) {
         setAnalysis(analyses[0]);
-        markStageCompleted('analysis');
       }
     } catch (error) {
       console.error('Failed to load analysis:', error);
@@ -150,11 +136,6 @@ export function ProjectPageV2() {
       const bp = await api.getLatestBlueprint(projectId!);
       if (bp) {
         setBlueprint(bp.blueprint);
-        markStageCompleted('blueprint');
-
-        if (bp.blueprint.status === 'blueprint_ready') {
-          markStageCompleted('blueprint');
-        }
       }
     } catch (error) {
       console.error('Failed to load blueprint:', error);
@@ -163,17 +144,8 @@ export function ProjectPageV2() {
 
   const loadSlideContents = async () => {
     try {
-      if (!blueprint?.id) {
-        console.log('No blueprint available for loading slide contents');
-        return;
-      }
-
       const contents = await api.getSlideContents(projectId!);
       setSlideContents(contents || []);
-
-      if (contents && contents.length > 0) {
-        markStageCompleted('content');
-      }
     } catch (error) {
       console.error('Failed to load slide contents:', error);
     }
@@ -181,70 +153,27 @@ export function ProjectPageV2() {
 
   const loadSpeakerNotes = async () => {
     try {
-      if (!blueprint?.id) {
-        console.log('No blueprint available for loading speaker notes');
-        return;
-      }
-
       const notes = await api.getSpeakerNotes(projectId!);
       setSpeakerNotes(notes || []);
-
-      if (notes && notes.length > 0) {
-        markStageCompleted('speaker_notes');
-      }
     } catch (error) {
       console.error('Failed to load speaker notes:', error);
     }
   };
 
-  const determineCurrentStage = () => {
-    // Logic to determine which stage we're on based on project state
-    if (!documents.length) {
-      setCurrentStage('documents');
-    } else if (!analysis) {
-      setCurrentStage('analysis');
-    } else if (!blueprint) {
-      setCurrentStage('blueprint');
-    } else if (blueprint.status !== 'blueprint_ready') {
-      setCurrentStage('blueprint');
-    } else if (!slideContents.length) {
-      setCurrentStage('content');
-    } else {
-      setCurrentStage('speaker_notes');
-    }
-  };
-
-  const markStageCompleted = (stage: WorkflowStage) => {
-    setCompletedStages(prev => {
-      if (!prev.includes(stage)) {
-        return [...prev, stage];
-      }
-      return prev;
-    });
-  };
-
   const goToStage = (stage: WorkflowStage) => {
-    // Check if stage is accessible
-    const stageIndex = ['project_setup', 'documents', 'analysis', 'blueprint', 'content', 'speaker_notes', 'export'].indexOf(stage);
-    const currentIndex = ['project_setup', 'documents', 'analysis', 'blueprint', 'content', 'speaker_notes', 'export'].indexOf(currentStage);
-
-    // Can go to completed stages or next stage
-    if (completedStages.includes(stage) || stageIndex === currentIndex + 1 || stage === 'project_setup') {
-      setCurrentStage(stage);
-    }
+    setCurrentStage(stage);
   };
 
   const goNext = () => {
-    const stages: WorkflowStage[] = ['project_setup', 'documents', 'analysis', 'blueprint', 'content', 'speaker_notes', 'export'];
+    const stages: WorkflowStage[] = ['project_setup', 'documents', 'analysis', 'blueprint', 'content_export', 'speaker_notes'];
     const currentIndex = stages.indexOf(currentStage);
     if (currentIndex < stages.length - 1) {
-      const nextStage = stages[currentIndex + 1];
-      setCurrentStage(nextStage);
+      setCurrentStage(stages[currentIndex + 1]);
     }
   };
 
   const goPrev = () => {
-    const stages: WorkflowStage[] = ['project_setup', 'documents', 'analysis', 'blueprint', 'content', 'speaker_notes', 'export'];
+    const stages: WorkflowStage[] = ['project_setup', 'documents', 'analysis', 'blueprint', 'content_export', 'speaker_notes'];
     const currentIndex = stages.indexOf(currentStage);
     if (currentIndex > 0) {
       setCurrentStage(stages[currentIndex - 1]);
@@ -300,9 +229,9 @@ export function ProjectPageV2() {
                   🔍 Проанализировано
                 </Chip>
               )}
-              {blueprint?.status === 'blueprint_ready' && (
+              {blueprint && (
                 <Chip color="success" variant="flat">
-                  ✅ Структура утверждена
+                  📋 {blueprint.slides?.length || 0} слайдов
                 </Chip>
               )}
             </div>
@@ -312,10 +241,9 @@ export function ProjectPageV2() {
 
       {/* Main Content */}
       <div className="container mx-auto p-6">
-        {/* Workflow Stepper */}
+        {/* Workflow Stepper - Simplified, all stages clickable */}
         <WorkflowStepper
           currentStage={currentStage}
-          completedStages={completedStages}
           onStageClick={goToStage}
         />
 
@@ -345,7 +273,6 @@ export function ProjectPageV2() {
               analysis={analysis}
               onAnalysisComplete={(result) => {
                 setAnalysis(result);
-                markStageCompleted('analysis');
                 goNext();
               }}
               onPrev={goPrev}
@@ -360,7 +287,6 @@ export function ProjectPageV2() {
               blueprint={blueprint}
               onBlueprintReady={(bp) => {
                 setBlueprint(bp);
-                markStageCompleted('blueprint');
                 goNext();
               }}
               onPrev={goPrev}
@@ -368,17 +294,11 @@ export function ProjectPageV2() {
             />
           )}
 
-          {currentStage === 'content' && (
-            <ContentStage
+          {currentStage === 'content_export' && (
+            <ContentAndExportStage
               projectId={projectId!}
               blueprint={blueprint}
-              slideContents={slideContents}
-              onContentGenerated={(contents) => {
-                setSlideContents(contents);
-                markStageCompleted('content');
-              }}
               onPrev={goPrev}
-              onNext={goNext}
             />
           )}
 
@@ -389,21 +309,9 @@ export function ProjectPageV2() {
               speakerNotes={speakerNotes}
               onNotesGenerated={(notes) => {
                 setSpeakerNotes(notes);
-                markStageCompleted('speaker_notes');
-                goNext();
               }}
               onPrev={goPrev}
-              onNext={goNext}
-            />
-          )}
-
-          {currentStage === 'export' && (
-            <ExportStage
-              projectId={projectId!}
-              blueprint={blueprint}
-              slideContents={slideContents}
-              speakerNotes={speakerNotes}
-              onPrev={goPrev}
+              onNext={() => { }}
             />
           )}
         </div>

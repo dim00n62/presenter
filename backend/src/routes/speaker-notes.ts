@@ -35,8 +35,7 @@ speakerNotesRouter.post('/generate', async (req, res) => {
 
         // Generate speaker notes for each slide
         const speakerNotes = await speakerNotesAgent.generateForPresentation(
-            blueprint,
-            slidesWithContent
+            blueprint
         );
 
         // Update slides with speaker notes in blueprint

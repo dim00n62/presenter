@@ -1,8 +1,8 @@
 // frontend/src/components/stages/SpeakerNotesStage.tsx
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StagePanel } from '../StagePanel';
-import { Button, Card, Chip, Textarea } from '@heroui/react';
+import { Button, Card, Textarea } from '@heroui/react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
 
@@ -26,11 +26,12 @@ export function SpeakerNotesStage({
   const [isGenerating, setIsGenerating] = useState(false);
   const [localNotes, setLocalNotes] = useState(speakerNotes);
 
+  console.log(localNotes)
+
   const generateNotes = async () => {
     setIsGenerating(true);
     try {
-      const slideIds = slideContents.map(s => s.slideId);
-      const notes = await api.generateSpeakerNotes(projectId, slideIds);
+      const notes = await api.generateSpeakerNotes(projectId);
       setLocalNotes(notes);
       onNotesGenerated(notes);
     } catch (error: any) {

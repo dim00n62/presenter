@@ -88,29 +88,28 @@ const SPEAKER_NOTES_SYSTEM_PROMPT = `# РОЛЬ
 class SpeakerNotesAgent {
     async generateForSlide(
         slide: any,
-        slideContent: any,
         blueprintMetadata: any,
         previousSlide?: any,
         nextSlide?: any
     ): Promise<SpeakerNotesResult> {
-        console.log(`🎤 Генерация текста для слайда: ${slide.title}`);
+        console.log(`🎤 Генерация текста для слайда: ${slide.content?.title || slide.id}`);
 
         const slideInfo = {
             current: {
                 order: slide.order,
-                title: slide.title,
+                title: slide.content?.title || 'Без названия',
                 type: slide.type,
-                content: slideContent.content,
+                content: slide.content,
             },
             previous: previousSlide ? {
-                title: previousSlide.title,
+                title: previousSlide.content?.title || 'Предыдущий слайд',
             } : null,
             next: nextSlide ? {
-                title: nextSlide.title,
+                title: nextSlide.content?.title || 'Следующий слайд',
             } : null,
             presentation: {
-                type: blueprintMetadata.presentationType,
-                audience: blueprintMetadata.targetAudience,
+                type: blueprintMetadata?.presentationType || 'business',
+                audience: blueprintMetadata?.targetAudience || ['профессионалы'],
             }
         };
 
@@ -123,10 +122,10 @@ ${JSON.stringify(slideInfo, null, 2)}
 Создайте текст выступления для этого слайда.
 
 ВАЖНО:
-- Плавный переход от предыдущего слайда${previousSlide ? ` "${previousSlide.title}"` : ''}
-- Подготовка к следующему${nextSlide ? ` "${nextSlide.title}"` : ''}
-- Аудитория: ${blueprintMetadata.targetAudience?.join(', ') || 'профессионалы'}
-- Тип: ${blueprintMetadata.presentationType}
+- Плавный переход от предыдущего слайда${previousSlide ? ` "${previousSlide.content?.title}"` : ''}
+- Подготовка к следующему${nextSlide ? ` "${nextSlide.content?.title}"` : ''}
+- Аудитория: ${blueprintMetadata?.targetAudience?.join(', ') || 'профессионалы'}
+- Тип: ${blueprintMetadata?.presentationType || 'business'}
 - ВСЕ на русском
 - Только JSON в ответе`;
 
@@ -139,19 +138,20 @@ ${JSON.stringify(slideInfo, null, 2)}
             );
 
             result.slideId = slide.id;
-            console.log(`✅ Текст готов (${result.metadata.wordCount} слов, ${result.speakerNotes.timing.estimated} сек)`);
+            console.log(`✅ Текст готов для слайда ${slide.order}: (${result.metadata.wordCount} слов, ${result.speakerNotes.timing.estimated} сек)`);
             return result;
 
         } catch (error) {
-            console.error('Ошибка генерации текста:', error);
+            console.error(`❌ Ошибка генерации текста для слайда ${slide.order}:`, error);
 
             // Fallback: базовый текст
-            return this.createFallbackNotes(slide, slideContent);
+            return this.createFallbackNotes(slide);
         }
     }
 
-    private createFallbackNotes(slide: any, slideContent: any): SpeakerNotesResult {
-        const bullets = slideContent.content.body?.bullets || [];
+    private createFallbackNotes(slide: any): SpeakerNotesResult {
+        const content = slide.content;
+        const bullets = content?.body?.bullets || [];
         const bodyText = bullets.map((b: any) =>
             typeof b === 'string' ? b : b.main
         ).join('. ');
@@ -159,7 +159,7 @@ ${JSON.stringify(slideInfo, null, 2)}
         return {
             slideId: slide.id,
             speakerNotes: {
-                intro: `Теперь давайте рассмотрим ${slide.title.toLowerCase()}.`,
+                intro: `Теперь давайте рассмотрим ${content?.title?.toLowerCase() || 'этот слайд'}.`,
                 body: bodyText || 'На этом слайде представлена важная информация по теме.',
                 transition: 'Переходим к следующему разделу.',
                 keyPoints: bullets.slice(0, 3),
@@ -171,7 +171,7 @@ ${JSON.stringify(slideInfo, null, 2)}
                 emphasis: [],
             },
             metadata: {
-                wordCount: bodyText.split(' ').length,
+                wordCount: bodyText.split(' ').length || 20,
                 readingLevel: 'professional',
                 confidence: 40,
             }
@@ -179,44 +179,86 @@ ${JSON.stringify(slideInfo, null, 2)}
     }
 
     async generateForPresentation(
-        blueprint: any,
-        slideContents: any[]
+        blueprint: any
     ): Promise<SpeakerNotesResult[]> {
-        console.log(`🎤 Генерация текста для ${blueprint.slides.length} слайдов`);
+        const sortedSlides = blueprint.slides
+            .filter((s: any) => s.content)
+            .sort((a: any, b: any) => a.order - b.order);
 
-        const results: SpeakerNotesResult[] = [];
-        const sortedSlides = blueprint.slides.sort((a: any, b: any) => a.order - b.order);
+        console.log(`🎤 Генерация текста для ${sortedSlides.length} слайдов (параллельно)...`);
+        const startTime = Date.now();
 
-        for (let i = 0; i < sortedSlides.length; i++) {
-            const slide = sortedSlides[i];
-            const content = slideContents.find(c => c.slideId === slide.id);
+        // 🚀 ПАРАЛЛЕЛЬНАЯ ГЕНЕРАЦИЯ - все слайды одновременно!
+        const promises = sortedSlides.map((slide: any, index: number) => {
+            const previousSlide = index > 0 ? sortedSlides[index - 1] : null;
+            const nextSlide = index < sortedSlides.length - 1 ? sortedSlides[index + 1] : null;
 
-            if (!content) {
-                console.warn(`⚠️ Контент не найден для слайда ${slide.id}`);
-                continue;
-            }
-
-            const previousSlide = i > 0 ? sortedSlides[i - 1] : null;
-            const nextSlide = i < sortedSlides.length - 1 ? sortedSlides[i + 1] : null;
-
-            const speakerNotes = await this.generateForSlide(
+            return this.generateForSlide(
                 slide,
-                content,
                 blueprint.metadata,
                 previousSlide,
                 nextSlide
             );
+        });
 
-            results.push(speakerNotes);
+        // Ждём завершения всех запросов
+        const results = await Promise.all(promises);
 
-            // Небольшая задержка между запросами
-            if (i < sortedSlides.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+        const endTime = Date.now();
+        const duration = ((endTime - startTime) / 1000).toFixed(1);
+        const totalTime = results.reduce((sum, r) => sum + r.speakerNotes.timing.estimated, 0);
+
+        console.log(`✅ Все тексты готовы за ${duration} сек. Общее время презентации: ${Math.round(totalTime / 60)} минут`);
+
+        return results;
+    }
+
+    // 🎯 АЛЬТЕРНАТИВА: Батчи для контроля нагрузки
+    async generateForPresentationBatched(
+        blueprint: any,
+        batchSize: number = 5  // Генерируем по 5 слайдов параллельно
+    ): Promise<SpeakerNotesResult[]> {
+        const sortedSlides = blueprint.slides
+            .filter((s: any) => s.content)
+            .sort((a: any, b: any) => a.order - b.order);
+
+        console.log(`🎤 Генерация текста для ${sortedSlides.length} слайдов (батчами по ${batchSize})...`);
+        const startTime = Date.now();
+
+        const results: SpeakerNotesResult[] = [];
+
+        // Разбиваем на батчи
+        for (let i = 0; i < sortedSlides.length; i += batchSize) {
+            const batch = sortedSlides.slice(i, i + batchSize);
+            console.log(`📦 Батч ${Math.floor(i / batchSize) + 1}/${Math.ceil(sortedSlides.length / batchSize)}: слайды ${i + 1}-${Math.min(i + batchSize, sortedSlides.length)}`);
+
+            const batchPromises = batch.map((slide: any, batchIndex: number) => {
+                const globalIndex = i + batchIndex;
+                const previousSlide = globalIndex > 0 ? sortedSlides[globalIndex - 1] : null;
+                const nextSlide = globalIndex < sortedSlides.length - 1 ? sortedSlides[globalIndex + 1] : null;
+
+                return this.generateForSlide(
+                    slide,
+                    blueprint.metadata,
+                    previousSlide,
+                    nextSlide
+                );
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+
+            // Небольшая пауза между батчами (опционально)
+            if (i + batchSize < sortedSlides.length) {
+                await new Promise(resolve => setTimeout(resolve, 200));
             }
         }
 
+        const endTime = Date.now();
+        const duration = ((endTime - startTime) / 1000).toFixed(1);
         const totalTime = results.reduce((sum, r) => sum + r.speakerNotes.timing.estimated, 0);
-        console.log(`✅ Все тексты готовы. Общее время: ${Math.round(totalTime / 60)} минут`);
+
+        console.log(`✅ Все тексты готовы за ${duration} сек. Общее время презентации: ${Math.round(totalTime / 60)} минут`);
 
         return results;
     }

@@ -7,9 +7,8 @@ export type WorkflowStage =
   | 'documents'          // Загрузка документов
   | 'analysis'           // AI анализ
   | 'blueprint'          // Структура презентации
-  | 'content'            // Генерация контента
-  | 'speaker_notes'      // Заметки докладчика
-  | 'export';            // Экспорт PPTX
+  | 'content_export'     // Контент и экспорт (объединено!)
+  | 'speaker_notes';     // Заметки докладчика
 
 interface WorkflowStep {
   id: WorkflowStage;
@@ -23,7 +22,7 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     id: 'project_setup',
     label: 'Настройка',
     icon: '⚙️',
-    description: 'Цели и аудитория',
+    description: 'Цели и playground',
   },
   {
     id: 'documents',
@@ -41,13 +40,13 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     id: 'blueprint',
     label: 'Структура',
     icon: '📋',
-    description: 'План презентации',
+    description: 'План слайдов',
   },
   {
-    id: 'content',
+    id: 'content_export',
     label: 'Контент',
-    icon: '✍️',
-    description: 'Создание слайдов',
+    icon: '💾',
+    description: 'Создание и экспорт',
   },
   {
     id: 'speaker_notes',
@@ -55,112 +54,90 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     icon: '🎤',
     description: 'Текст выступления',
   },
-  {
-    id: 'export',
-    label: 'Экспорт',
-    icon: '💾',
-    description: 'Скачать PPTX',
-  },
 ];
 
 interface WorkflowStepperProps {
   currentStage: WorkflowStage;
-  completedStages: WorkflowStage[];
   onStageClick?: (stage: WorkflowStage) => void;
 }
 
 export function WorkflowStepper({
   currentStage,
-  completedStages,
   onStageClick,
 }: WorkflowStepperProps) {
   const currentIndex = WORKFLOW_STEPS.findIndex(s => s.id === currentStage);
 
   return (
     <Card className="p-6 mb-6">
-      <div className="flex items-center justify-between gap-4">
-        {WORKFLOW_STEPS.map((step, index) => {
-          const isCompleted = completedStages.includes(step.id);
-          const isCurrent = step.id === currentStage;
-          const isAccessible = isCompleted || isCurrent || index === currentIndex + 1 || 1;
-          const isPast = index < currentIndex;
+      <div className="relative">
+        {/* Progress Line */}
+        <div className="absolute top-8 left-0 right-0 h-1 bg-gray-200 rounded-full">
+          <div
+            className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500"
+            style={{
+              width: `${(currentIndex / (WORKFLOW_STEPS.length - 1)) * 100}%`,
+            }}
+          />
+        </div>
 
-          return (
-            <div key={step.id} className="flex items-center flex-1">
-              {/* Step */}
+        {/* Steps */}
+        <div className="relative flex justify-between">
+          {WORKFLOW_STEPS.map((step, index) => {
+            const isCurrent = step.id === currentStage;
+            const isPast = index < currentIndex;
+
+            return (
               <button
-                onClick={() => isAccessible && onStageClick?.(step.id)}
-                disabled={!isAccessible}
+                key={step.id}
+                onClick={() => onStageClick?.(step.id)}
                 className={`
-                  relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all
-                  ${isCurrent ? 'bg-gradient-to-br from-green-100 to-teal-100 ring-2 ring-green-500' : ''}
-                  ${isCompleted ? 'bg-green-50' : ''}
-                  ${!isAccessible ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}
-                  ${isAccessible && !isCurrent && !isCompleted ? 'hover:bg-blue-50' : ''}
+                  flex flex-col items-center gap-2 transition-all
+                  ${onStageClick ? 'cursor-pointer hover:scale-105' : 'cursor-default'}
+                  ${isCurrent ? 'scale-110' : ''}
                 `}
+                style={{ width: `${100 / WORKFLOW_STEPS.length}%` }}
               >
-                {/* Icon with status */}
-                <div className="relative">
-                  <div className={`
-                    text-3xl transition-transform
-                    ${isCurrent ? 'scale-125' : ''}
-                  `}>
-                    {step.icon}
-                  </div>
-
-                  {isCompleted && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">✓</span>
-                    </div>
-                  )}
-
-                  {isCurrent && (
-                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    </div>
-                  )}
+                {/* Icon Circle */}
+                <div
+                  className={`
+                    w-16 h-16 rounded-full flex items-center justify-center text-2xl
+                    transition-all duration-300 shadow-lg
+                    ${isCurrent
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 scale-110 shadow-blue-300'
+                      : isPast
+                        ? 'bg-gradient-to-br from-green-500 to-green-600 shadow-green-300'
+                        : 'bg-white border-2 border-gray-300'
+                    }
+                  `}
+                >
+                  {isPast && !isCurrent ? '✓' : step.icon}
                 </div>
 
                 {/* Label */}
                 <div className="text-center">
-                  <div className={`
-                    text-sm font-semibold
-                    ${isCurrent ? 'text-green-700' : ''}
-                    ${isCompleted ? 'text-green-600' : ''}
-                    ${!isAccessible ? 'text-gray-400' : 'text-gray-700'}
-                  `}>
+                  <p
+                    className={`
+                      text-sm font-semibold transition-colors
+                      ${isCurrent ? 'text-blue-600' : isPast ? 'text-green-600' : 'text-gray-600'}
+                    `}
+                  >
                     {step.label}
-                  </div>
-                  <div className={`
-                    text-xs
-                    ${isCurrent ? 'text-green-600' : ''}
-                    ${!isAccessible ? 'text-gray-300' : 'text-gray-500'}
-                  `}>
+                  </p>
+                  <p className="text-xs text-gray-500 max-w-[100px]">
                     {step.description}
-                  </div>
+                  </p>
                 </div>
-
-                {/* Current indicator */}
-                {isCurrent && (
-                  <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 
-                    bg-green-500 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap">
-                    Текущий этап
-                  </div>
-                )}
               </button>
+            );
+          })}
+        </div>
+      </div>
 
-              {/* Connector line */}
-              {index < WORKFLOW_STEPS.length - 1 && (
-                <div className="flex-1 h-1 mx-2">
-                  <div className={`
-                    h-full rounded transition-all
-                    ${isPast ? 'bg-green-500' : 'bg-gray-200'}
-                  `} />
-                </div>
-              )}
-            </div>
-          );
-        })}
+      {/* Info */}
+      <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-sm text-blue-700 text-center">
+          💡 Все этапы доступны для свободной навигации
+        </p>
       </div>
     </Card>
   );

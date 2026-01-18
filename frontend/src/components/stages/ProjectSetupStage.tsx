@@ -14,26 +14,17 @@ export function ProjectSetupStage({ project, onNext }: ProjectSetupStageProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [includeCharts, setIncludeCharts] = useState(true);
     const [theme, setTheme] = useState<'SBER_MAIN' | 'SBER_DARK'>('SBER_MAIN');
-    const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
     const handleGenerateTestPresentation = async () => {
         try {
             setIsGenerating(true);
-            setDownloadUrl(null);
 
             console.log('🎨 Generating test presentation...');
 
-            const response = await api.createTestPresentation({
+            await api.createTestPresentation({
                 theme,
                 includeCharts,
             });
-
-            if (response.success && response.downloadUrl) {
-                setDownloadUrl(response.downloadUrl);
-                console.log('✅ Test presentation created:', response.downloadUrl);
-            } else {
-                throw new Error('Failed to generate presentation');
-            }
         } catch (error: any) {
             console.error('❌ Test presentation generation failed:', error);
             alert(`Ошибка при создании презентации: ${error.message}`);
@@ -164,30 +155,6 @@ export function ProjectSetupStage({ project, onNext }: ProjectSetupStageProps) {
                     >
                         {isGenerating ? 'Создаём презентацию...' : 'Создать тестовую презентацию'}
                     </Button>
-
-                    {/* Download Link */}
-                    {downloadUrl && (
-                        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl">✅</span>
-                                    <div>
-                                        <p className="font-medium text-green-800">Презентация готова!</p>
-                                        <p className="text-sm text-green-600">
-                                            {includeCharts ? '7 слайдов' : '6 слайдов'} с примерами
-                                        </p>
-                                    </div>
-                                </div>
-                                <a
-                                    href={downloadUrl}
-                                    download
-                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                                >
-                                    💾 Скачать
-                                </a>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Info */}
                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
