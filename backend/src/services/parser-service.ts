@@ -63,7 +63,7 @@ export class ParserService {
             // Используем batch embedding с прогрессом
             const vectors = await qwenClient.embedBatch(
                 texts,
-                10, // batch size
+                100, // batch size
                 (completed, total) => {
                     const percent = Math.round((completed / total) * 100);
                     console.log(`📈 Embedding progress: ${completed}/${total} (${percent}%)`);

@@ -5,38 +5,244 @@ import { qwenClient } from "../services/qwen-client";
 import { ragService } from "../services/rag-service";
 import { AnalysisResult } from "../types/workflow";
 
-
-
 class AnalysisAgent {
-    private maxChunksPerAnalysis = 15; // Уменьшили с 20 до 15
-    private maxContextLength = 8000; // Добавили лимит контекста
+    private maxChunksPerAnalysis = 15;
 
-    async getRelevantChunks(projectId: string): Promise<any[]> {
-        const keyQueries = [
-            'проект система архитектура',
-            'сроки этап milestone',
-            'риски проблемы',
-            'команда разработка',
-            'метрики производительность'
-        ];
+    /**
+     * 🆕 Генерирует ключевые запросы на основе ЦЕЛИ презентации
+     */
+    async generateKeyQueries(project: any): Promise<string[]> {
+        console.log('🔍 [Analysis Agent] Generating key queries based on presentation goal...');
 
-        const relevantChunkIds = new Set<string>();
+        const presentationGoal = project?.presentationGoal;
+        const targetAudience = project?.targetAudience;
+        const presentationContext = project?.presentationContext;
 
-        for (const query of keyQueries) {
-            try {
-                const results = await ragService.search(query, 3, projectId);
-                results.forEach(r => relevantChunkIds.add(r.chunkId));
-            } catch (err) {
-                console.warn(`RAG search failed for query "${query}":`, err.message);
-            }
+        // Если нет цели - используем универсальные запросы
+        if (!presentationGoal && !presentationContext) {
+            console.log('⚠️ No presentation goal - using universal queries');
+            return this.getUniversalQueries();
         }
 
-        // 🔧 ИСПРАВЛЕНИЕ: Получаем полные объекты чанков
-        console.log(`🔍 Found ${relevantChunkIds.size} relevant chunk IDs`);
+        // Используем AI для генерации релевантных запросов
+        const prompt = `# ЗАДАЧА
+Сгенерируй 5-7 ключевых поисковых запросов для RAG системы на основе цели презентации.
 
-        if (relevantChunkIds.size === 0) {
-            console.warn('⚠️ No chunks found by RAG search, loading all chunks');
-            // Fallback: загружаем все чанки проекта
+# КОНТЕКСТ ПРЕЗЕНТАЦИИ
+Цель: ${presentationGoal || 'не указана'}
+Аудитория: ${targetAudience || 'не указана'}
+Контекст: ${presentationContext || 'не указан'}
+
+# ПРАВИЛА
+1. Запросы должны покрывать ОСНОВНЫЕ темы презентации
+2. Используй 2-4 ключевых слова в запросе
+3. Фокусируйся на конкретных аспектах, релевантных цели
+4. Включай синонимы и связанные термины
+5. НЕ используй общие слова типа "информация", "данные"
+6. ВСЕ запросы на РУССКОМ языке
+
+# ПРИМЕРЫ
+
+Цель: "Презентация для инвесторов о финансовых результатах"
+Запросы:
+- "выручка прибыль доход"
+- "рост показатели динамика"
+- "инвестиции капитал финансирование"
+- "рынок конкуренты доля"
+- "прогноз план стратегия"
+
+Цель: "Отчёт о внедрении новой системы безопасности"
+Запросы:
+- "безопасность защита уязвимости"
+- "внедрение миграция развертывание"
+- "риски угрозы инциденты"
+- "соответствие стандарты compliance"
+- "метрики эффективность результаты"
+
+# ФОРМАТ ОТВЕТА
+Верни ТОЛЬКО массив строк (JSON):
+["запрос 1", "запрос 2", "запрос 3", ...]
+
+НЕ ДОБАВЛЯЙ пояснений, только JSON массив.`;
+
+        try {
+            const response = await qwenClient.chat(
+                [{ role: 'user', content: prompt }],
+                0.3
+            );
+
+            // Парсим JSON ответ
+            let queries: string[];
+            const content = response.trim();
+
+            // Убираем markdown code blocks если есть
+            const jsonMatch = content.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) ||
+                content.match(/(\[[\s\S]*?\])/);
+
+            if (jsonMatch) {
+                queries = JSON.parse(jsonMatch[1]);
+            } else {
+                throw new Error('Failed to parse queries JSON');
+            }
+
+            console.log(`✅ Generated ${queries.length} dynamic queries:`, queries);
+            return queries;
+
+        } catch (error) {
+            console.error('❌ Failed to generate dynamic queries:', error);
+            console.log('⚠️ Falling back to goal-based queries');
+            return this.getGoalBasedQueries(presentationGoal, presentationContext);
+        }
+    }
+
+    /**
+     * 🔧 Fallback: Генерирует запросы на основе ключевых слов в цели
+     */
+    private getGoalBasedQueries(goal?: string, context?: string): string[] {
+        const text = `${goal || ''} ${context || ''}`.toLowerCase();
+        const queries: string[] = [];
+
+        // Детектируем тип презентации по ключевым словам
+        const detectionPatterns = {
+            financial: ['финанс', 'выручк', 'прибыл', 'бюджет', 'инвестиц', 'доход', 'рентабельност'],
+            technical: ['архитектур', 'систем', 'разработк', 'api', 'инфраструктур', 'технолог'],
+            security: ['безопасност', 'защит', 'риск', 'уязвимост', 'аудит', 'compliance'],
+            business: ['стратеги', 'рынок', 'клиент', 'продукт', 'конкурент', 'рост'],
+            project: ['проект', 'срок', 'milestone', 'команд', 'план', 'статус'],
+            analytics: ['метрик', 'показател', 'анализ', 'данн', 'статистик', 'KPI'],
+            product: ['продукт', 'фич', 'запуск', 'функционал', 'MVP', 'пользовател'],
+        };
+
+        // Подсчитываем совпадения
+        const scores: { [key: string]: number } = {};
+        for (const [category, patterns] of Object.entries(detectionPatterns)) {
+            scores[category] = patterns.filter(p => text.includes(p)).length;
+        }
+
+        // Сортируем категории по релевантности
+        const topCategories = Object.entries(scores)
+            .filter(([_, score]) => score > 0)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([category]) => category);
+
+        console.log('📊 Detected categories:', topCategories);
+
+        // Генерируем запросы для топ категорий
+        const categoryQueries: { [key: string]: string[] } = {
+            financial: [
+                'выручка прибыль доход',
+                'финансовые результаты показатели',
+                'бюджет инвестиции затраты',
+                'ROI эффективность окупаемость'
+            ],
+            technical: [
+                'архитектура система компоненты',
+                'разработка технологии стек',
+                'API интеграция микросервисы',
+                'инфраструктура deployment облако'
+            ],
+            security: [
+                'безопасность защита уязвимости',
+                'риски угрозы инциденты',
+                'аудит compliance стандарты',
+                'шифрование авторизация доступ'
+            ],
+            business: [
+                'стратегия развитие цели',
+                'рынок конкуренты позиция',
+                'клиенты сегменты потребности',
+                'продукт портфель линейка'
+            ],
+            project: [
+                'проект сроки этапы',
+                'milestone задачи backlog',
+                'команда роли ресурсы',
+                'план roadmap график'
+            ],
+            analytics: [
+                'метрики KPI показатели',
+                'анализ данные статистика',
+                'тренды динамика рост',
+                'dashboard отчёты визуализация'
+            ],
+            product: [
+                'продукт функции возможности',
+                'запуск релиз внедрение',
+                'пользователи feedback отзывы',
+                'roadmap развитие планы'
+            ],
+        };
+
+        // Собираем запросы из топ категорий
+        for (const category of topCategories) {
+            queries.push(...(categoryQueries[category] || []).slice(0, 2));
+        }
+
+        // Если нашли мало запросов - добавляем универсальные
+        if (queries.length < 4) {
+            queries.push(...this.getUniversalQueries().slice(0, 5 - queries.length));
+        }
+
+        return queries.slice(0, 7);
+    }
+
+    /**
+     * 🔧 Универсальные запросы (когда нет цели)
+     */
+    private getUniversalQueries(): string[] {
+        return [
+            'цель задачи решение',
+            'результаты показатели метрики',
+            'проблемы риски сложности',
+            'план этапы roadmap',
+            'команда ресурсы компетенции',
+            'выводы рекомендации next steps',
+        ];
+    }
+
+    async getRelevantChunks(projectId: string): Promise<any[]> {
+        // Получаем проект для контекста
+        await db.db.read();
+        const project = db.db.data.projects.find((p: any) => p.id === projectId);
+
+        // Генерируем динамические запросы
+        const keyQueries = await this.generateKeyQueries(project);
+
+        console.log(`🔍 [Analysis Agent] Searching with ${keyQueries.length} queries...`);
+
+        // 🆕 ИСПОЛЬЗУЕМ MULTI-QUERY SEARCH
+        const relevantChunks = await ragService.multiQuerySearch(keyQueries, {
+            topK: this.maxChunksPerAnalysis,  // 15
+            similarityThreshold: 0.5,          // 🆕 Минимум 50% схожести
+            projectId: projectId,
+            debug: true                        // 🆕 Логируем для диагностики
+        });
+
+        console.log(`✅ [Analysis Agent] Found ${relevantChunks.length} relevant chunks`);
+
+        if (relevantChunks.length === 0) {
+            console.warn('⚠️ No chunks found with threshold 0.5, trying adaptive search...');
+
+            // 🆕 FALLBACK: Adaptive search
+            const adaptiveResults = await ragService.adaptiveSearch(keyQueries[0], {
+                topK: this.maxChunksPerAnalysis,
+                projectId: projectId,
+                debug: true
+            });
+
+            if (adaptiveResults.length > 0) {
+                console.log(`✅ Adaptive search found ${adaptiveResults.length} chunks`);
+                return adaptiveResults.map(r => ({
+                    id: r.chunkId,
+                    content: r.content,
+                    metadata: r.metadata,
+                    documentId: r.documentId
+                }));
+            }
+
+            // Last resort: загружаем все чанки
+            console.warn('⚠️ Falling back to all chunks');
             const documents = await db.getDocumentsByProject(projectId);
             const allChunks: any[] = [];
             for (const doc of documents) {
@@ -48,32 +254,13 @@ class AnalysisAgent {
             return allChunks.slice(0, this.maxChunksPerAnalysis);
         }
 
-        // Загружаем полные объекты чанков по ID
-        const chunks: any[] = [];
-        for (const chunkId of relevantChunkIds) {
-            try {
-                const chunk = await db.getChunk(chunkId);
-                if (chunk && chunk.content) {
-                    chunks.push(chunk);
-                }
-            } catch (err) {
-                console.warn(`Failed to load chunk ${chunkId}:`, err.message);
-            }
-        }
-
-        console.log(`✅ Loaded ${chunks.length} chunk objects`);
-
-        // 🔍 ДИАГНОСТИКА
-        if (chunks.length > 0) {
-            console.log('📄 First chunk preview:', {
-                id: chunks[0].id,
-                hasContent: !!chunks[0].content,
-                contentLength: chunks[0].content?.length,
-                contentPreview: chunks[0].content?.substring(0, 100)
-            });
-        }
-
-        return chunks.slice(0, this.maxChunksPerAnalysis);
+        // Конвертируем SearchResult в формат chunks
+        return relevantChunks.map(r => ({
+            id: r.chunkId,
+            content: r.content,
+            metadata: r.metadata,
+            documentId: r.documentId
+        }));
     }
 
     async analyze(projectId: string, documentIds: string[]): Promise<AnalysisResult> {
@@ -82,64 +269,47 @@ class AnalysisAgent {
             await db.db.read();
             const project = db.db.data.projects.find((p: any) => p.id === projectId);
 
-            // Get relevant chunks
+            // Get relevant chunks with DYNAMIC queries
             const relevantChunks = await this.getRelevantChunks(projectId);
 
+            // 🆕 УЛУЧШЕННЫЙ ПРОМПТ - адаптируется под цель
             const ANALYSIS_SYSTEM_PROMPT = `# РОЛЬ
-Вы - агент анализа данных для IT-проектов в банковской сфере.
-Извлекайте инсайты из Excel/PDF для создания презентаций.
+Вы - агент анализа документов для создания презентаций.
+Извлекайте инсайты из документов на основе ЦЕЛИ презентации.
+
+# ЦЕЛЬ ПРЕЗЕНТАЦИИ
+${project?.presentationGoal ? `Цель: ${project.presentationGoal}` : 'Цель не указана - сделай общий анализ'}
+${project?.targetAudience ? `Аудитория: ${project.targetAudience}` : ''}
+${project?.presentationContext ? `Контекст: ${project.presentationContext}` : ''}
 
 # ЯЗЫК ОТВЕТА: РУССКИЙ
 - Все текстовые поля НА РУССКОМ
 - JSON поля на английском
 - Цитаты источников обязательны
 
-# КЛЮЧЕВАЯ ЦЕЛЬ
-Вы не просто анализируете документы.
-Вы готовите МАТЕРИАЛ ДЛЯ УПРАВЛЕНЧЕСКИХ РЕШЕНИЙ.
-
-# ДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ
-- Выявляйте противоречия между документами
-- Отмечайте скрытые риски (даже если они не названы явно)
-- Формулируйте выводы в формате:
-  "Что это значит для бизнеса / проекта / регулятора?"
-
-# INSIGHT-DRIVEN ПОДХОД
-Для каждого важного факта добавляйте:
-- Почему это важно
-- Какой риск / возможность за этим стоит
-
 # ПРАВИЛА
 1. Не придумывайте данные
 2. Помечайте неясности: "Неясно, является ли..."
-3. Цитируйте: [Файл: X, Лист: Y]
+3. Цитируйте: [Документ: X, стр Y] или [Лист: X]
 4. Только валидный JSON
+5. ФОКУС НА ЦЕЛИ: извлекай информацию релевантную цели презентации
 
-# КОНТЕКСТ
-${project?.presentationGoal ? `Цель: ${project.presentationGoal}` : ''}
-${project?.targetAudience ? `Аудитория: ${project.targetAudience}` : ''}
-${project?.presentationContext ? `Контекст: ${project.presentationContext}` : ''}
+# АДАПТАЦИЯ ПОД ТИП ДОКУМЕНТОВ
 Документы могут быть про:
-- Инфраструктуру (миграции, архитектура)
-- Разработку (API, сервисы, интеграции)
-- Безопасность (аудиты, compliance)
-- Аналитику (метрики, отчеты)
-- Процессы (планы, статусы)
-- Бюджеты (только если есть в документе!)
+- Финансы (отчёты, бюджеты, инвестиции)
+- Технологии (архитектура, разработка, инфраструктура)
+- Бизнес (стратегия, продукты, рынок)
+- Проекты (планы, статусы, roadmap)
+- Безопасность (аудиты, риски, compliance)
+- Аналитика (метрики, KPI, отчёты)
+- HR (команды, компетенции, процессы)
 
-НЕ форсируйте финансы если их нет!
-
-# ТИПИЧНЫЕ ТЕРМИНЫ
-- Core Banking: Oracle, SAP, Temenos, АБС
-- Инфраструктура: СУБД, ESB, API Gateway
-- Безопасность: ИБ, СЗИ, SIEM
-- Compliance: 152-ФЗ, GDPR, PCI DSS, СТО БР
-- Команды: ЦИТ, ДИТ, Служба безопасности
+НЕ форсируйте категории если информации нет!
 
 # JSON СТРУКТУРА
 {
   "classification": {
-    "type": "technical_specification|status_report|architecture_document|security_audit|development_plan|infrastructure_report|analytics_report|process_documentation|budget_document|meeting_notes|unknown",
+    "type": "financial_report|technical_document|business_plan|project_status|security_audit|analytics_report|hr_document|product_spec|meeting_notes|mixed|unknown",
     "confidence": 0-100,
     "keywords": ["массив"],
     "reasoning": "текст на русском"
@@ -161,6 +331,7 @@ ${project?.presentationContext ? `Контекст: ${project.presentationContex
   "metrics": {
     "financial": [{"name": "текст", "value": "текст", "source": "цитата", "confidence": 0-100}],
     "technical": [{"name": "текст", "value": "текст", "source": "цитата", "confidence": 0-100}],
+    "business": [{"name": "текст", "value": "текст", "source": "цитата", "confidence": 0-100}],
     "risk": [{"name": "текст", "severity": "low|medium|high|critical", "description": "текст", "mitigation": "текст или null", "source": "цитата"}],
     "compliance": [{"regulation": "текст", "status": "compliant|non_compliant|unclear", "notes": "текст", "source": "цитата"}]
   },
@@ -171,40 +342,39 @@ ${project?.presentationContext ? `Контекст: ${project.presentationContex
     "gaps": ["массив текстов"]
   },
   "recommendations": {
-    "presentationType": "pitch|status_report|architecture_review|security_review|technical_deep_dive|executive_summary",
+    "presentationType": "investor_pitch|status_report|technical_review|business_review|executive_summary|product_launch|team_update",
     "slideCount": {"min": число, "max": число, "recommended": число},
     "mustIncludeSections": [{"name": "текст", "reasoning": "текст", "priority": "critical|high|medium"}],
-    "visualizations": [{"type": "gantt_chart|pie_chart|bar_chart|architecture_diagram|flow_diagram|table|network_diagram|sequence_diagram", "title": "текст", "dataSource": "цитата", "reasoning": "текст"}]
+    "visualizations": [{"type": "gantt_chart|pie_chart|bar_chart|line_chart|architecture_diagram|flow_diagram|table|network_diagram|funnel|scatter", "title": "текст", "dataSource": "цитата", "reasoning": "текст"}]
   }
 }
 
-# АДАПТАЦИЯ
-- Разработка → technical метрики
-- Безопасность → риски и compliance  
-- Статус → timeline и прогресс
-- Нет бюджета → budget: null
+# РЕКОМЕНДАЦИИ СЛАЙДОВ ПОД ЦЕЛЬ
+Адаптируй количество слайдов под цель:
+- Executive summary: 5-10 слайдов
+- Investor pitch: 10-15 слайдов
+- Technical deep-dive: 15-25 слайдов
+- Status update: 8-12 слайдов
+- Product launch: 12-18 слайдов
 
 # ВИЗУАЛИЗАЦИИ ПОД КОНТЕКСТ
-- Архитектура → architecture_diagram, network_diagram
+Выбирай визуализации под данные:
+- Тренды во времени → line_chart
+- Сравнение категорий → bar_chart
+- Доли/структура → pie_chart
 - Процессы → flow_diagram, gantt_chart
-- Аналитика → bar_chart, pie_chart
-- Риски → table, bar_chart
+- Архитектура → architecture_diagram, network_diagram
+- Воронки конверсии → funnel
+- Корреляции → scatter`;
 
-# РЕКОМЕНДАЦИИ СЛАЙДОВ
-- Technical deep-dive: 15-25
-- Executive summary: 5-10
-- Status report: 8-15
-- Architecture review: 12-20`;
+            const userPrompt = `Проанализируй следующие документы для презентации.
 
-            // Continue with existing logic...
-            const userPrompt = `Проанализируй следующие документы для презентации:
+ВАЖНО: Фокусируйся на информации, релевантной ЦЕЛИ: ${project?.presentationGoal || 'общий анализ'}
 
 ${relevantChunks.map((chunk, i) => `
 [Фрагмент ${i + 1}]
 ${chunk.content}
-`).join('\n')}
-
-Помни о ЦЕЛИ презентации: ${project?.presentationGoal || 'не указана'}`;
+`).join('\n')}`;
 
             const response = await qwenClient.chatJSON(
                 [

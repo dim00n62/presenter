@@ -2,6 +2,7 @@
 
 import mammoth from 'mammoth';
 import { readFile } from 'fs/promises';
+import { semanticChunker, SemanticChunk } from '../services/semantic-chunker.js';
 
 interface DocxParseResult {
     type: 'docx';
@@ -106,7 +107,61 @@ export class DocxParser {
         }];
     }
 
+    /**
+     * 🆕 SEMANTIC CHUNKING - умное разбиение с сохранением структуры
+     */
     createTextChunks(result: DocxParseResult): Array<{ content: string; metadata: any }> {
+        console.log('📚 [DOCX Parser] Creating semantic chunks...');
+
+        // Используем весь текст для semantic chunking
+        const fullText = result.fullText;
+
+        if (!fullText || fullText.trim().length === 0) {
+            console.warn('⚠️ Empty DOCX document');
+            return [];
+        }
+
+        // Semantic chunking
+        const semanticChunks = semanticChunker.chunk(fullText, {
+            strategy: 'hybrid',
+            maxChunkSize: 1500,
+            minChunkSize: 300,
+            overlapSize: 200,
+            preserveSentences: true,
+        });
+
+        // Обогащаем metadata информацией о секциях
+        const chunks = semanticChunks.map((chunk: SemanticChunk) => {
+            // Находим к какой секции относится chunk
+            const section = this.findSectionForChunk(chunk, result.sections);
+
+            return {
+                content: chunk.content,
+                metadata: {
+                    type: 'semantic_chunk',
+                    chunkIndex: chunk.metadata.chunkIndex,
+                    wordCount: chunk.metadata.wordCount,
+                    sentences: chunk.metadata.sentences,
+                    topics: chunk.metadata.topics,
+                    chunkingStrategy: chunk.metadata.type,
+                    // Дополнительная информация о структуре документа
+                    sectionTitle: section?.title,
+                    sectionLevel: section?.level,
+                }
+            };
+        });
+
+        console.log(`✅ [DOCX Parser] Created ${chunks.length} semantic chunks (avg ${Math.round(chunks.reduce((sum, c) => sum + c.metadata.wordCount, 0) / chunks.length)} words)`);
+
+        return chunks;
+    }
+
+    /**
+     * 🔧 LEGACY: Старый метод (по секциям) - оставляем для совместимости
+     */
+    createSectionBasedChunks(result: DocxParseResult): Array<{ content: string; metadata: any }> {
+        console.log('📄 [DOCX Parser] Creating section-based chunks (legacy mode)...');
+
         const chunks: Array<{ content: string; metadata: any }> = [];
 
         result.sections.forEach((section, index) => {
@@ -129,6 +184,29 @@ export class DocxParser {
         });
 
         return chunks;
+    }
+
+    private findSectionForChunk(
+        chunk: SemanticChunk,
+        sections: Array<{ title?: string; content: string; level: number }>
+    ): { title?: string; level: number } | null {
+        // Ищем секцию, которая содержит начало chunk
+        const chunkStart = chunk.content.slice(0, 100);
+
+        for (const section of sections) {
+            const sectionText = section.title
+                ? `${section.title}\n\n${section.content}`
+                : section.content;
+
+            if (sectionText.includes(chunkStart)) {
+                return {
+                    title: section.title,
+                    level: section.level,
+                };
+            }
+        }
+
+        return null;
     }
 }
 

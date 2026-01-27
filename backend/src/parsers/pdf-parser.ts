@@ -1,6 +1,7 @@
 // backend/src/parsers/pdf-parser.ts
 import { readFile } from 'fs/promises';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { semanticChunker, SemanticChunk } from '../services/semantic-chunker.js';
 
 export interface PDFParseResult {
     filename: string;
@@ -63,7 +64,64 @@ export class PDFParser {
         }
     }
 
+    /**
+     * 🆕 SEMANTIC CHUNKING - разбивает по смыслу, а не по страницам!
+     */
     createTextChunks(result: PDFParseResult): Array<{ content: string; metadata: any }> {
+        console.log('📚 [PDF Parser] Creating semantic chunks from full text...');
+
+        // Используем ВЕСЬ текст, не разбиваем по страницам
+        const fullText = result.text;
+
+        if (!fullText || fullText.trim().length === 0) {
+            console.warn('⚠️ No text extracted from PDF - this might be an image-based/scanned PDF');
+            console.warn('💡 Try converting to DOCX or use text-based PDF instead');
+            return [];
+        }
+
+        // Semantic chunking с гибридной стратегией
+        const semanticChunks = semanticChunker.chunk(fullText, {
+            strategy: 'hybrid',
+            maxChunkSize: 1500,   // ~300 слов
+            minChunkSize: 300,    // ~60 слов
+            overlapSize: 200,     // ~40 слов overlap для контекста
+            preserveSentences: true,
+        });
+
+        // Конвертируем в формат для analysis agent
+        const chunks = semanticChunks.map((chunk: SemanticChunk) => {
+            // Определяем примерный page number из offset
+            const estimatedPage = this.estimatePageNumber(
+                chunk.metadata.startOffset,
+                result.text.length,
+                result.metadata.pageCount
+            );
+
+            return {
+                content: chunk.content,
+                metadata: {
+                    type: 'semantic_chunk',
+                    chunkIndex: chunk.metadata.chunkIndex,
+                    wordCount: chunk.metadata.wordCount,
+                    sentences: chunk.metadata.sentences,
+                    estimatedPage,  // Примерная страница (для справки)
+                    topics: chunk.metadata.topics,
+                    chunkingStrategy: chunk.metadata.type,
+                }
+            };
+        });
+
+        console.log(`✅ [PDF Parser] Created ${chunks.length} semantic chunks (avg ${Math.round(chunks.reduce((sum, c) => sum + c.metadata.wordCount, 0) / chunks.length)} words)`);
+
+        return chunks;
+    }
+
+    /**
+     * 🔧 LEGACY: Старый метод (по страницам) - оставляем для совместимости
+     */
+    createPageBasedChunks(result: PDFParseResult): Array<{ content: string; metadata: any }> {
+        console.log('📄 [PDF Parser] Creating page-based chunks (legacy mode)...');
+
         const chunks: Array<{ content: string; metadata: any }> = [];
 
         result.pages.forEach(page => {
@@ -79,34 +137,16 @@ export class PDFParser {
             }
         });
 
-        // If no chunks created, warn about image-based PDF
         if (chunks.length === 0) {
-            console.warn('⚠️ No text extracted from PDF - this might be an image-based/scanned PDF');
-            console.warn('💡 Try converting to DOCX or use text-based PDF instead');
+            console.warn('⚠️ No text extracted from PDF');
         }
 
         return chunks;
     }
 
-    private splitTextIntoChunks(text: string, maxSize: number): string[] {
-        const chunks: string[] = [];
-        const paragraphs = text.split(/\n\s*\n/);
-
-        let currentChunk = '';
-
-        for (const para of paragraphs) {
-            if (currentChunk.length + para.length > maxSize && currentChunk) {
-                chunks.push(currentChunk.trim());
-                currentChunk = '';
-            }
-            currentChunk += para + '\n\n';
-        }
-
-        if (currentChunk) {
-            chunks.push(currentChunk.trim());
-        }
-
-        return chunks;
+    private estimatePageNumber(offset: number, totalLength: number, totalPages: number): number {
+        const ratio = offset / totalLength;
+        return Math.ceil(ratio * totalPages) || 1;
     }
 }
 

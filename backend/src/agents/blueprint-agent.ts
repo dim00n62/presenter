@@ -1,6 +1,5 @@
 // backend/src/agents/blueprint-agent.ts
 import { qwenClient } from '../services/qwen-client.js';
-import { ragService } from '../services/rag-service.js';
 import { db } from '../db/index.js';
 import { AnalysisResult } from '../types/workflow.js';
 
