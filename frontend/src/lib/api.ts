@@ -188,6 +188,19 @@ export const api = {
         return response.json();
     },
 
+    async saveSpeakerNotes(projectId: string, notes: any[]) {
+        const response = await fetch(`${API_BASE}/api/speaker-notes/project/${projectId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notes),
+        });
+        if (!response.ok) {
+            if (response.status === 404) return [];
+            throw new Error('Speaker notes not found');
+        }
+        return response.json();
+    },
+
     async exportSpeakerNotesDocx(projectId: string) {
         const response = await fetch(`${API_BASE}/api/speaker-notes/export-docx/${projectId}`);
         if (!response.ok) throw new Error('Export failed');

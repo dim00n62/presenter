@@ -126,7 +126,7 @@ export function DocumentsStage({
                 Начните с загрузки документов
               </h3>
               <p className="text-sm text-blue-700">
-                Поддерживаются форматы: PDF, DOCX, XLSX
+                Поддерживаются форматы: PDF, DOCX, XLSX, JSON, TXT
               </p>
             </div>
           </Card>

@@ -22,6 +22,8 @@ export function DocumentUpload({ projectId, onDocumentUploaded }: DocumentUpload
 
             // Check file type
             const allowedTypes = [
+                'text/plain',
+                'application/json',
                 'application/pdf',
                 'application/vnd.ms-excel',
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -152,6 +154,8 @@ export function DocumentUpload({ projectId, onDocumentUploaded }: DocumentUpload
                     <span>📊 Excel (.xlsx, .xls)</span>
                     <span>📄 PDF (text-based)</span>
                     <span>📝 Word (.docx)</span>
+                    <span>📝 Text (.txt)</span>
+                    <span>📝 JSON (.json)</span>
                 </div>
             </div>
 

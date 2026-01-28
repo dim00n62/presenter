@@ -399,12 +399,12 @@ router.post('/playground/test-presentation', async (req, res) => {
         // Generate PPTX
         const pptxBuffer = await generatePresentation(
             mockBlueprint,
-            {
-                title: 'Design Playground - Test Presentation',
-                author: 'Presentation Agent',
-                company: 'Сбербанк',
-                theme: theme
-            }
+            // {
+            //     title: 'Design Playground - Test Presentation',
+            //     author: 'Presentation Agent',
+            //     company: 'Сбербанк',
+            //     theme: theme
+            // }
         );
 
         // Save file (опционально, для истории)

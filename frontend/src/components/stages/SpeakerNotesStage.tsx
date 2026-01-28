@@ -9,8 +9,6 @@ import { toast } from 'sonner';
 interface SpeakerNotesStageProps {
   projectId: string;
   slideContents: any[];
-  speakerNotes: any[];
-  onNotesGenerated: (notes: any[]) => void;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -18,22 +16,17 @@ interface SpeakerNotesStageProps {
 export function SpeakerNotesStage({
   projectId,
   slideContents,
-  speakerNotes,
-  onNotesGenerated,
   onPrev,
   onNext,
 }: SpeakerNotesStageProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [localNotes, setLocalNotes] = useState(speakerNotes);
-
-  console.log(localNotes)
+  const [speakerNotes, setSpeakerNotes] = useState<any[]>([]);
 
   const generateNotes = async () => {
     setIsGenerating(true);
     try {
-      const notes = await api.generateSpeakerNotes(projectId);
-      setLocalNotes(notes);
-      onNotesGenerated(notes);
+      const result = await api.generateSpeakerNotes(projectId);
+      setSpeakerNotes(result.speakerNotes);
     } catch (error: any) {
       toast.error(`Ошибка: ${error.message}`);
     } finally {
@@ -41,8 +34,22 @@ export function SpeakerNotesStage({
     }
   };
 
+
+  const loadSpeakerNotes = async () => {
+    try {
+      const notes = await api.getSpeakerNotes(projectId!);
+      setSpeakerNotes(notes || []);
+    } catch (error) {
+      console.error('Failed to load speaker notes:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadSpeakerNotes();
+  }, []);
+
   const updateNote = (slideId: string, field: string, value: string) => {
-    setLocalNotes(localNotes.map((note: any) =>
+    setSpeakerNotes(speakerNotes.map((note: any) =>
       note.slideId === slideId
         ? { ...note, speakerNotes: { ...note.speakerNotes, [field]: value } }
         : note
@@ -51,14 +58,14 @@ export function SpeakerNotesStage({
 
   const saveNotes = async () => {
     try {
-      await api.saveSpeakerNotes(projectId, localNotes);
+      await api.saveSpeakerNotes(projectId, speakerNotes);
       toast.success('Заметки сохранены!');
     } catch (error: any) {
       toast.error(`Ошибка: ${error.message}`);
     }
   };
 
-  const hasNotes = localNotes.length > 0;
+  const hasNotes = speakerNotes.length > 0;
 
   return (
     <StagePanel
@@ -120,7 +127,7 @@ export function SpeakerNotesStage({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">
-                  Заметки ({localNotes.length} слайдов)
+                  Заметки ({speakerNotes.length} слайдов)
                 </h3>
                 <p className="text-sm text-gray-600">
                   Редактируйте текст выступления
@@ -137,7 +144,7 @@ export function SpeakerNotesStage({
 
             {/* Notes List */}
             <div className="space-y-4">
-              {localNotes.map((note: any, index: number) => {
+              {speakerNotes.map((note: any, index: number) => {
                 const slideContent = slideContents.find(s => s.slideId === note.slideId);
 
                 return (

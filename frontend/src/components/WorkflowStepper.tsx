@@ -19,12 +19,6 @@ interface WorkflowStep {
 
 const WORKFLOW_STEPS: WorkflowStep[] = [
   {
-    id: 'project_setup',
-    label: 'Настройка',
-    icon: '⚙️',
-    description: 'Цели и playground',
-  },
-  {
     id: 'documents',
     label: 'Документы',
     icon: '📄',
@@ -53,6 +47,12 @@ const WORKFLOW_STEPS: WorkflowStep[] = [
     label: 'Заметки',
     icon: '🎤',
     description: 'Текст выступления',
+  },
+  {
+    id: 'project_setup',
+    label: 'Настройка',
+    icon: '⚙️',
+    description: 'Цели и debug',
   },
 ];
 

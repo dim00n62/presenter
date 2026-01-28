@@ -20,14 +20,13 @@ export function ProjectPageV2() {
   const navigate = useNavigate();
 
   const [project, setProject] = useState<any>(null);
-  const [currentStage, setCurrentStage] = useState<WorkflowStage>('project_setup');
+  const [currentStage, setCurrentStage] = useState<WorkflowStage>('documents');
 
   // Data for each stage - lazy loaded
   const [documents, setDocuments] = useState<any[]>([]);
   const [analysis, setAnalysis] = useState<any>(null);
   const [blueprint, setBlueprint] = useState<any>(null);
   const [slideContents, setSlideContents] = useState<any[]>([]);
-  const [speakerNotes, setSpeakerNotes] = useState<any[]>([]);
 
   // Track what data has been loaded
   const [loadedStages, setLoadedStages] = useState<Set<string>>(new Set());
@@ -35,7 +34,7 @@ export function ProjectPageV2() {
   useEffect(() => {
     if (projectId) {
       loadProject();
-      loadDataForStage('project_setup');
+      loadDataForStage('documents');
     }
   }, [projectId]);
 
@@ -83,24 +82,13 @@ export function ProjectPageV2() {
           await loadDocuments();
           break;
 
-        case 'analysis':
-          await loadDocuments();
-          await loadAnalysis();
-          break;
-
         case 'blueprint':
-          await loadAnalysis();
           await loadBlueprint();
           break;
 
         case 'content_export':
           await loadBlueprint();
           await loadSlideContents();
-          break;
-
-        case 'speaker_notes':
-          await loadSlideContents();
-          await loadSpeakerNotes();
           break;
       }
 
@@ -117,17 +105,6 @@ export function ProjectPageV2() {
       setDocuments(docs);
     } catch (error) {
       console.error('Failed to load documents:', error);
-    }
-  };
-
-  const loadAnalysis = async () => {
-    try {
-      const analyses = await api.getAnalysis(projectId!);
-      if (analyses && analyses.length > 0) {
-        setAnalysis(analyses[0]);
-      }
-    } catch (error) {
-      console.error('Failed to load analysis:', error);
     }
   };
 
@@ -151,21 +128,12 @@ export function ProjectPageV2() {
     }
   };
 
-  const loadSpeakerNotes = async () => {
-    try {
-      const notes = await api.getSpeakerNotes(projectId!);
-      setSpeakerNotes(notes || []);
-    } catch (error) {
-      console.error('Failed to load speaker notes:', error);
-    }
-  };
-
   const goToStage = (stage: WorkflowStage) => {
     setCurrentStage(stage);
   };
 
   const goNext = () => {
-    const stages: WorkflowStage[] = ['project_setup', 'documents', 'analysis', 'blueprint', 'content_export', 'speaker_notes'];
+    const stages: WorkflowStage[] = ['documents', 'analysis', 'blueprint', 'content_export', 'speaker_notes', 'project_setup'];
     const currentIndex = stages.indexOf(currentStage);
     if (currentIndex < stages.length - 1) {
       setCurrentStage(stages[currentIndex + 1]);
@@ -173,7 +141,7 @@ export function ProjectPageV2() {
   };
 
   const goPrev = () => {
-    const stages: WorkflowStage[] = ['project_setup', 'documents', 'analysis', 'blueprint', 'content_export', 'speaker_notes'];
+    const stages: WorkflowStage[] = ['documents', 'analysis', 'blueprint', 'content_export', 'speaker_notes', 'project_setup'];
     const currentIndex = stages.indexOf(currentStage);
     if (currentIndex > 0) {
       setCurrentStage(stages[currentIndex - 1]);
@@ -253,7 +221,6 @@ export function ProjectPageV2() {
             <ProjectSetupStage
               projectId={projectId!}
               project={project}
-              onNext={goNext}
             />
           )}
 
@@ -269,14 +236,8 @@ export function ProjectPageV2() {
           {currentStage === 'analysis' && (
             <AnalysisStage
               projectId={projectId!}
-              documents={documents}
-              analysis={analysis}
-              onAnalysisComplete={(result) => {
-                setAnalysis(result);
-                goNext();
-              }}
               onPrev={goPrev}
-              onNext={goNext}
+              onContinue={goNext}
             />
           )}
 
@@ -306,10 +267,6 @@ export function ProjectPageV2() {
             <SpeakerNotesStage
               projectId={projectId!}
               slideContents={slideContents}
-              speakerNotes={speakerNotes}
-              onNotesGenerated={(notes) => {
-                setSpeakerNotes(notes);
-              }}
               onPrev={goPrev}
               onNext={() => { }}
             />

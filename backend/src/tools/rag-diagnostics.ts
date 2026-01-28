@@ -8,7 +8,6 @@
 
 import { db } from '../db/index.js';
 import { qwenClient } from '../services/qwen-client.js';
-import { ragService } from '../services/rag-service.js';
 
 interface DiagnosticResult {
     query: string;

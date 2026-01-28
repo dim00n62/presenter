@@ -93,6 +93,32 @@ speakerNotesRouter.get('/project/:projectId', async (req, res) => {
     }
 });
 
+// Get speaker notes for project
+speakerNotesRouter.post('/project/:projectId', async (req, res) => {
+    try {
+        const notes = req.body;
+        await db.db.read();
+
+        const blueprint = db.db.data.blueprints
+            .filter(b => b.projectId === req.params.projectId)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+        if (!blueprint || Array.isArray(notes) === false) {
+            return res.status(404).json({ error: 'Speaker notes не найден' });
+        }
+
+        blueprint.slides.forEach((slide, index) => {
+            slide.speakerNotes[index] = notes.find((n: any) => n.slideId === slide.id)?.speakerNotes || slide.speakerNotes;
+        });
+
+        res.status(200).json({ success: true });
+        await db.db.write();
+
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Export to DOCX
 speakerNotesRouter.get('/export-docx/:projectId', async (req, res) => {
     try {

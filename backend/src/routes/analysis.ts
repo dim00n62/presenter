@@ -70,12 +70,12 @@ analysisRouter.get('/project/:projectId', async (req, res) => {
     try {
         await db.db.read();
 
-        const analyses = db.db.data.analyses
+        const analysis = db.db.data.analyses
             ?.filter((a: any) => a.projectId === req.params.projectId)
-            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
         // Return array (empty if no analysis yet)
-        res.json(analyses || []);
+        res.json(analysis ? { analysis } : {});
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

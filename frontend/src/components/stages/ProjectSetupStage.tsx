@@ -7,10 +7,9 @@ import { api } from '../../lib/api';
 interface ProjectSetupStageProps {
     projectId: string;
     project: any;
-    onNext: () => void;
 }
 
-export function ProjectSetupStage({ project, onNext }: ProjectSetupStageProps) {
+export function ProjectSetupStage({ project }: ProjectSetupStageProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [includeCharts, setIncludeCharts] = useState(true);
     const [theme, setTheme] = useState<'SBER_MAIN' | 'SBER_DARK'>('SBER_MAIN');
@@ -165,18 +164,6 @@ export function ProjectSetupStage({ project, onNext }: ProjectSetupStageProps) {
                     </div>
                 </CardBody>
             </Card>
-
-            {/* Navigation */}
-            <div className="flex justify-end">
-                <Button
-                    color="primary"
-                    size="lg"
-                    onPress={onNext}
-                    endContent={<span>→</span>}
-                >
-                    Перейти к загрузке документов
-                </Button>
-            </div>
 
             {/* Quick Stats */}
             <div className="grid grid-cols-3 gap-4">
